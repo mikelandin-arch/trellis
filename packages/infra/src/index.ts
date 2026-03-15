@@ -1,2 +1,3 @@
-// CDK stacks created in Week 1 via Cursor Plan Mode
-export {};
+export { TrellisNetworkStack } from './network-stack';
+export { TrellisDataStack } from './data-stack';
+export { TrellisComputeStack } from './compute-stack';
