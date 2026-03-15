@@ -1,0 +1,50 @@
+---
+description: TypeScript conventions enforced across the entire Trellis HOA monorepo
+globs: **/*.ts,**/*.tsx
+alwaysApply: true
+---
+
+# TypeScript Conventions — Trellis HOA Platform
+
+## Project Context
+Trellis (trellishoa.com) is a multi-tenant HOA management SaaS built as a Turborepo monorepo with React Native (Expo SDK 53), Fastify + tRPC, PostgreSQL with Row-Level Security, Clerk auth, and AWS infrastructure. The target market is self-managed communities under 200 units.
+
+## Strict Type Safety
+- `strict: true` in all tsconfig files — no exceptions
+- NEVER use `any` — use `unknown` and narrow with type guards
+- NEVER use `@ts-ignore` or `@ts-expect-error` — fix the type
+- NEVER use enums — use `as const` objects or union literal types
+- Explicit return types on all exported functions
+- Use `satisfies` operator for type validation without widening
+- Prefer `readonly` arrays and objects where mutation isn't needed
+
+## Patterns
+- Functional and declarative — no classes except when required by libraries
+- Use Zod schemas for ALL external data validation (API inputs, env vars, config)
+- Define Zod schemas once in `packages/shared/src/schemas/` — reuse everywhere
+- Export inferred types from Zod: `export type Violation = z.infer<typeof violationSchema>`
+- Use discriminated unions for state machines (violation status, payment status, etc.)
+- Prefer `Result<T, E>` pattern over throwing for expected errors
+- Use branded types for IDs: `type TenantId = number & { readonly __brand: 'TenantId' }`
+
+## Naming
+- Files: `kebab-case.ts` (e.g., `violation-router.ts`, `assessment-schema.ts`)
+- Types/Interfaces: `PascalCase` (e.g., `ViolationRecord`, `PaymentIntent`)
+- Functions/Variables: `camelCase`
+- Constants: `SCREAMING_SNAKE_CASE` for true constants, `camelCase` for config objects
+- Database columns in code: `camelCase` (Drizzle maps to `snake_case` in SQL)
+
+## Imports
+- Use `import type` for type-only imports — keeps mobile bundles clean
+- Prefer named exports over default exports (better refactoring, better tree-shaking)
+- Use workspace aliases: `@repo/shared`, `@repo/db`, `@repo/api-client`
+
+## Error Handling
+- Use tRPC error codes correctly: UNAUTHORIZED (401), FORBIDDEN (403), NOT_FOUND (404), BAD_REQUEST (400), INTERNAL_SERVER_ERROR (500)
+- Log errors with structured context: `{ tenantId, userId, operation, error }`
+- Never expose internal error details to clients — map to user-friendly messages
+
+## ESLint
+- NEVER disable ESLint rules with inline comments
+- If a rule seems wrong, fix the code — don't suppress the warning
+- Run `turbo run lint check-types` before every commit

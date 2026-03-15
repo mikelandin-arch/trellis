@@ -1,0 +1,73 @@
+---
+description: React Native and Expo conventions for the Trellis mobile app
+globs: apps/mobile/**/*.ts,apps/mobile/**/*.tsx
+---
+
+# React Native + Expo — Trellis Mobile App
+
+## Framework
+- Expo SDK 53 with React Native 0.79 and React 19
+- New Architecture enabled by default — all code must be compatible
+- Expo managed workflow — no bare workflow, no native module compilation
+- expo-router for file-based navigation (see navigation rules below)
+
+## Component Patterns
+- Functional components with hooks ONLY — no class components
+- Keep components under 150 lines — extract into smaller files when larger
+- Use `React.memo()` for list items and expensive renders
+- Prefer composition over prop drilling — use React Context sparingly
+- Colocate component, styles, and hooks in the same directory
+
+## Navigation (expo-router)
+- File-based routing in `src/app/`
+- Role-based tab visibility via `<Tabs.Protected>` in SDK 53
+- Maximum navigation depth: 3 taps from any tab to any screen
+- Use typed routes: `router.push('/violations/[id]')` with type-safe params
+- Deep linking configured for magic link auth callbacks via `trellis://` scheme
+
+## Styling
+- Use StyleSheet.create() — not inline styles (performance)
+- Design for 55+ users: minimum 18sp body text, 56dp touch targets
+- WCAG 2.2 AA contrast ratios (4.5:1 text, 3:1 large text/UI)
+- Test on both iOS and Android — use Platform.select() for divergent styles
+- Support dark mode via useColorScheme()
+
+## Offline Architecture (3-tier)
+- **react-native-mmkv v4**: Auth tokens, tenant context, user preferences (synchronous, encrypted)
+- **WatermelonDB**: Violations, properties, inspection records, work orders (relational, reactive, pull/push sync)
+- **expo-sqlite**: Complex ad-hoc reporting queries
+- Treat offline as a neutral state — never show error modals for no connectivity
+- Queue mutations locally → sync when online via expo-background-task
+
+## Data Fetching
+- tRPC + TanStack React Query hooks for all server communication
+- Use `useQuery` with `trpc.<router>.<procedure>.queryOptions()` pattern (tRPC v11 syntax)
+- Use `useMutation` for writes
+- Optimistic updates for common actions (violation status changes, etc.)
+- Invalidate queries after mutations via queryClient
+
+## Camera & Media
+- expo-camera CameraView for violation photos
+- Auto-capture GPS coordinates with expo-location
+- Compress images before upload (expo-image-manipulator, max 1920px wide)
+- Upload to S3 via pre-signed URLs — never through the API server
+
+## Accessibility
+- Every interactive element needs `accessibilityLabel`
+- Every image needs `accessibilityRole="image"` and descriptive alt text
+- Test with VoiceOver (iOS) and TalkBack (Android)
+- Minimum touch target: 56dp × 56dp (vs default 44dp)
+- Support Dynamic Type / font scaling
+
+## Performance
+- Use FlashList (not FlatList) for all lists
+- Lazy load screens with React.lazy() + Suspense
+- Minimize re-renders: useCallback, useMemo judiciously (not everywhere)
+- Profile with React DevTools before optimizing
+
+## Auth (Clerk)
+- @clerk/clerk-expo wraps the app via ClerkProvider
+- useAuth() for auth state, useOrganization() for active HOA
+- Token stored in expo-secure-store via tokenCache
+- Biometric login via useLocalCredentials() hook
+- Magic link deep links handled via `trellis://` scheme in (auth)/verify.tsx

@@ -1,0 +1,72 @@
+---
+description: Fastify + tRPC backend conventions for the Trellis API server
+globs: apps/api/**/*.ts
+---
+
+# Fastify + tRPC API — Trellis Backend
+
+## Architecture
+- Fastify v5 server with tRPC v11 router for all internal client-server communication
+- REST endpoints alongside tRPC for Stripe webhooks, Lob callbacks, and external integrations
+- Domain-organized routers: violations, assessments, properties, communications, documents, governance
+- PostgreSQL with Row-Level Security for multi-tenant isolation
+
+## tRPC Procedure Hierarchy
+```
+publicProcedure        → No auth required (health check, public info)
+authedProcedure        → Layer 1: JWT validated, userId exists
+orgProcedure           → Layer 2: Active organization context extracted
+tenantProcedure        → Layer 3+4: Permission checked + RLS tenant context set
+superAdminProcedure    → Platform admin with BYPASSRLS connection pool
+```
+- Default to `tenantProcedure` for all tenant-scoped operations
+- Every procedure must have Zod input validation via `.input(schema)`
+- Every mutation must return the affected record(s)
+
+## RLS Tenant Context — CRITICAL
+- Use `SET LOCAL app.current_tenant = $1` inside an explicit transaction — NEVER bare `SET`
+- `SET LOCAL` scopes to current transaction — prevents context leakage in PgBouncer pools
+- The `withTenantDb` middleware handles: BEGIN → SET LOCAL → execute → COMMIT/ROLLBACK
+- Connect as `app_user` role (non-superuser) — superusers bypass RLS
+- Wrap `current_setting()` in subselects for planner caching: `(SELECT current_setting('app.current_tenant'))`
+- NEVER query without tenant context set — RLS denies all if unset
+
+## Database Access
+- Use Drizzle ORM for type-safe queries
+- Schema defined in `packages/db/src/schema/`
+- Migrations via Drizzle Kit (`drizzle-kit generate` → `drizzle-kit migrate`)
+- All tenant-scoped tables: `tenant_id BIGINT NOT NULL` as first column after PK
+- Use transactions for multi-table mutations
+- Denormalize `tenant_id` on leaf tables — never rely on JOINs for RLS
+
+## Clerk Integration
+- @clerk/fastify plugin validates JWTs and populates auth context
+- Extract orgId, orgRole, orgPermissions from JWT claims
+- Map Clerk org_id to internal tenant_id (cached in-memory, refreshed on miss)
+- Use Clerk's `has()` for simple permission checks
+- Use CASL (@casl/ability) for complex conditional authorization
+
+## Permission Checks
+- 6 Clerk roles: super_admin, board_officer, board_member, property_manager, committee_member, homeowner, vendor
+- Metadata-driven distinctions: vendor_type:"auditor", residency_type:"tenant", committees:["arc"]
+- Separation of duties for financial ops: creator_id ≠ approver_id (enforced in CASL)
+- Default-deny: if no explicit grant, access is denied
+
+## Webhook Handlers
+- Stripe: POST /webhooks/stripe — verify signature with stripe.webhooks.constructEvent()
+- Clerk: POST /webhooks/clerk — verify via Svix webhook signature
+- Lob: POST /webhooks/lob — verify signature header
+- All webhooks: idempotent handling, log event_id, return 200 quickly, process async
+
+## Error Handling
+- Use TRPCError with appropriate codes
+- Log with Pino (Fastify's built-in logger) — structured JSON
+- Include tenant context in all log entries: { tenantId, userId, traceId }
+- Never expose stack traces or internal details to clients
+
+## Testing
+- Vitest for unit and integration tests
+- Test tRPC procedures with createCaller()
+- Use test tenant with known data for integration tests
+- Mock Clerk auth context in tests
+- Test RLS isolation: verify tenant A cannot see tenant B's data

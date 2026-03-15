@@ -1,0 +1,7 @@
+node_modules
+dist
+.expo
+.next
+cdk.out
+coverage
+*.sql

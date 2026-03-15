@@ -1,0 +1,39 @@
+---
+description: AWS configuration for the HOA project — enforces correct account, profile, and region
+alwaysApply: true
+---
+
+# AWS Configuration
+
+This project uses a **dedicated AWS account**, separate from the default credentials.
+
+| Setting        | Value                |
+|----------------|----------------------|
+| AWS Account ID | `572885593026`       |
+| IAM User       | `hoa-admin`          |
+| Region         | `us-west-2`          |
+| CLI Profile    | `hoa`                |
+
+## Required: Always Specify the Profile
+
+**Never run bare `aws` commands.** Without the profile flag, commands hit the wrong account (`596430611773`, Stories of You).
+
+Every AWS CLI invocation must use one of:
+
+```powershell
+# Option A: flag on every command
+aws s3 ls --profile hoa --region us-west-2
+
+# Option B: set env vars at the start of a terminal session
+$env:AWS_PROFILE = "hoa"
+$env:AWS_DEFAULT_REGION = "us-west-2"
+```
+
+When writing scripts, IaC (CDK/CloudFormation/Terraform), or SDK code, configure the profile/region explicitly rather than relying on defaults.
+
+## Quick Verification
+
+```powershell
+aws sts get-caller-identity --profile hoa
+# Expected: Account 572885593026, Arn ...hoa-admin
+```

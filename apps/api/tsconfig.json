@@ -1,0 +1,1 @@
+{ "extends": "@repo/tsconfig/api.json", "compilerOptions": { "outDir": "./dist", "rootDir": "./src" }, "include": ["src"] }

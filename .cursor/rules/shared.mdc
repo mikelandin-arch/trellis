@@ -1,0 +1,45 @@
+---
+description: Shared package conventions — Zod schemas, types, and constants used across the monorepo
+globs: packages/shared/**/*.ts
+---
+
+# Shared Package — Trellis Cross-Package Types & Schemas
+
+## Purpose
+`packages/shared` is the single source of truth for types, Zod schemas, constants, and enums used by mobile, web, and API. Changes here propagate everywhere via TypeScript inference and tRPC.
+
+## Schema Organization
+```
+packages/shared/src/
+├── schemas/              # Zod schemas (the source of truth)
+│   ├── violation.ts
+│   ├── assessment.ts
+│   ├── payment.ts
+│   ├── property.ts
+│   ├── member.ts
+│   ├── document.ts
+│   ├── communication.ts
+│   ├── arc.ts
+│   ├── meeting.ts
+│   └── common.ts         # Shared primitives (pagination, IDs, dates)
+├── constants/
+│   ├── roles.ts
+│   ├── permissions.ts
+│   ├── states.ts
+│   └── violation-states.ts
+├── types/
+│   └── index.ts
+└── utils/
+    ├── currency.ts
+    ├── date.ts
+    └── validation.ts
+```
+
+## Rules
+- Zod schema is the source of truth — derive TypeScript types with `z.infer<>`
+- NEVER define a type manually if a Zod schema exists for it
+- Schemas must be importable by both React Native and Node.js — no platform-specific code
+- Use `z.discriminatedUnion()` for state-dependent shapes
+- Use `z.coerce.date()` for date fields that come as strings from APIs
+- Export both the schema and the inferred type from each file
+- Keep schemas focused — one domain per file, compose with z.merge/z.extend

@@ -1,0 +1,40 @@
+{
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:3001",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": ""
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-dev.trellishoa.com",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": ""
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.trellishoa.com",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": ""
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "",
+        "ascAppId": ""
+      },
+      "android": {
+        "serviceAccountKeyPath": ""
+      }
+    }
+  }
+}

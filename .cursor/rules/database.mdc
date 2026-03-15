@@ -1,0 +1,61 @@
+---
+description: PostgreSQL and Drizzle ORM conventions for the Trellis database layer
+globs: packages/db/**/*.ts
+---
+
+# Database Layer — Trellis PostgreSQL + Drizzle
+
+## Schema Conventions
+- UUID primary keys via gen_random_uuid() (switch to uuidv7() when RDS supports PG 18)
+- `tenant_id BIGINT NOT NULL` denormalized on EVERY tenant-scoped table (first column after PK)
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT now()` and `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` on all tables
+- RLS policy on all tenant-scoped tables: `USING (tenant_id = (SELECT current_tenant_id()) AND (SELECT current_tenant_id()) IS NOT NULL)`
+- `FORCE ROW LEVEL SECURITY` on table owners to prevent bypassing
+- `btree_gist` extension enabled for temporal EXCLUDE constraints
+
+## Multi-Tenancy (37 tables, 7 domains)
+- Platform tables (NO RLS): tenants, users
+- Shared reference tables (special RLS): compliance_profiles — platform/state scope rows readable by all via app_admin; community-scoped rows use tenant_id RLS
+- All other tables: RLS-enforced tenant isolation
+- Platform-level access: separate connection pool with BYPASSRLS role (super_admin only)
+
+## Drizzle ORM
+- Schema files organized by domain: `schema/platform.ts`, `schema/community.ts`, `schema/financial.ts`, `schema/governance.ts`, `schema/operations.ts`, `schema/communications.ts`
+- Use Drizzle's pgTable, pgEnum, and relation definitions
+- Map snake_case SQL columns to camelCase TypeScript via column naming
+- Generate migrations with `drizzle-kit generate` — never write migration SQL by hand
+- Review generated SQL before applying with `drizzle-kit migrate`
+
+## Column Patterns
+- Status columns: use CHECK constraints with string unions, NOT enums (easier to evolve)
+- Monetary amounts: `NUMERIC(12,2)` — NEVER use float/double for money
+- Temporal ownership: `daterange` columns with GiST-backed EXCLUDE constraints
+- JSONB: for configuration bundles, sparse data, tenant-extensible fields — NEVER for data you query/filter/sort
+- Text arrays: `TEXT[]` with GIN indexes for tag-based search (violation categories, precedent tags)
+
+## Indexing Strategy
+- Composite index leading on `tenant_id` for all tenant-scoped queries
+- Partial indexes for common filters: `WHERE status != 'active'`, `WHERE upper(valid_during) IS NULL`
+- GIN indexes on JSONB columns that need key-based queries
+- GiST indexes on daterange columns for temporal queries
+- Full-text search: tsvector columns with GIN indexes (documents, violation descriptions)
+
+## State Machines in SQL
+- Append-only transition tables (violation_transitions, arc_transitions)
+- Current state stored on parent table for query performance
+- Transition table records: from_state, to_state, triggered_by, timestamp, metadata (JSONB)
+- Transition rules table defines valid state transitions per state jurisdiction
+- Application code validates transitions against rules before INSERT
+
+## Financial Data
+- Fund-tagged double-entry ledger pattern
+- Payment-to-charge application via junction table (supports partial payments, overpayments)
+- Assessment rate history table tracks all changes with effective dates
+- Immutable audit log for all financial operations
+
+## Migrations
+- Always test migrations against a copy of production data
+- Wrap DDL in transactions where possible
+- Add NOT NULL columns with DEFAULT first, backfill, then optionally drop default
+- Never rename columns — add new, migrate data, drop old
+- Index creation: use CONCURRENTLY for large tables to avoid locks

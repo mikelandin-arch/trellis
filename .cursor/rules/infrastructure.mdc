@@ -1,0 +1,50 @@
+---
+description: AWS CDK infrastructure conventions for the Trellis platform
+globs: packages/infra/**/*.ts
+---
+
+# AWS Infrastructure — Trellis CDK
+
+## Account & Region
+- AWS Account: 572885593026 (hoa-platform child account)
+- Region: us-west-2
+- CLI Profile: `hoa`
+- Domain: trellishoa.com
+
+## CDK Conventions
+- AWS CDK v2 with TypeScript
+- One stack per logical boundary: `TrellisNetworkStack`, `TrellisDataStack`, `TrellisComputeStack`
+- Stage-based deployment via CDK context: `--context stage=dev|staging|prod`
+- Use `cdk.Tags.of(construct).add('Project', 'trellis')` on all resources
+- Prefer L2 constructs over L1 (Cfn*) unless the L2 lacks needed configuration
+
+## Naming Convention
+- Resources: `{stage}-trellis-{service}` (e.g., `prod-trellis-api`, `dev-trellis-rds`)
+- Environment variables in containers: `TRELLIS_{SERVICE}_{KEY}` (e.g., `TRELLIS_DB_URL`)
+
+## Phase 1 Infrastructure
+- **Compute**: App Runner (auto-scales to near-zero, ~$7/mo idle)
+- **Database**: RDS PostgreSQL 16 on db.t4g.micro ($11.68/mo), single-AZ
+- **Storage**: S3 bucket for documents/photos (tenant_id/type/year/ prefix structure)
+- **Secrets**: AWS Secrets Manager for DB credentials, Clerk/Stripe keys
+- **Monitoring**: CloudWatch Logs + Alarms, Sentry Free, Better Stack Free
+- **DNS**: Route 53 for trellishoa.com
+
+## Security
+- VPC with public + private subnets
+- RDS in private subnet — no public access
+- App Runner connects to RDS via VPC connector
+- IAM roles with least privilege — never use * permissions
+- Enable CloudTrail, GuardDuty, Security Hub from day one
+- KMS encryption on RDS, S3, and Secrets Manager
+
+## Cost Targets
+- Phase 1 (1 HOA, 55 units): ~$54/month total infrastructure
+- Use AWS free tier aggressively (Lambda, API Gateway, CloudFront, SES)
+- New account $200 credit applies
+
+## Scaling Path (no re-architecture)
+- App Runner → ECS Fargate with ARM/Graviton2 (30-50% cost savings)
+- RDS db.t4g.micro → db.t4g.medium as tenant count grows
+- S3 lifecycle rules: Standard → IA (90 days) → Glacier (1 year)
+- PgBouncer in transaction mode for connection pooling (NOT RDS Proxy — incompatible with RLS SET LOCAL)

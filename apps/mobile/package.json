@@ -1,0 +1,35 @@
+{
+  "name": "@repo/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start",
+    "build:ios": "eas build --platform ios",
+    "build:android": "eas build --platform android",
+    "lint": "eslint src/",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clerk/clerk-expo": "^2.5.0",
+    "@repo/api-client": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@trpc/client": "^11.0.0",
+    "@trpc/tanstack-react-query": "^11.0.0",
+    "expo": "~53.0.0",
+    "expo-camera": "~16.1.11",
+    "expo-location": "~18.1.6",
+    "expo-router": "~5.1.11",
+    "expo-secure-store": "~14.2.4",
+    "react": "^19.0.0",
+    "react-native": "~0.79.6",
+    "react-native-mmkv": "^3.2.0"
+  },
+  "devDependencies": {
+    "@repo/tsconfig": "workspace:*",
+    "@types/react": "^19.2.14",
+    "typescript": "^5.8.3"
+  }
+}

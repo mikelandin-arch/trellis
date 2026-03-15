@@ -1,0 +1,56 @@
+---
+description: Behavioral rules for AI-assisted development on the Trellis HOA platform
+globs: 
+alwaysApply: true
+---
+
+# AI Development Rules — Trellis HOA Platform
+
+## Code Changes
+- Aim for the smallest possible code change that achieves the goal
+- Always check existing code before writing new code — avoid duplicating utilities, types, or patterns
+- Read the full file before editing — understand context before changing
+- When modifying a file, preserve existing patterns and conventions in that file
+- If a change requires touching more than 5 files, stop and discuss the approach first
+
+## Code Quality
+- Never disable ESLint rules with inline comments — fix the code instead
+- Never use `@ts-ignore` or `@ts-expect-error` — fix the types
+- Never commit console.log — use the Pino structured logger
+- Never hardcode secrets, API keys, or environment-specific values — use env vars
+- Prefer early returns over deeply nested conditionals
+- Keep functions under 40 lines — extract helpers if longer
+
+## Dependencies
+- Check if an existing package already solves the problem before adding new ones
+- Prefer packages already in the monorepo's dependency tree
+- For new packages: check weekly downloads, last publish date, TypeScript support, and bundle size
+- Never add packages that duplicate existing functionality
+
+## Testing
+- Write tests for business logic, especially state machine transitions and financial calculations
+- Test RLS isolation explicitly — verify cross-tenant data leakage is impossible
+- Use meaningful test names that describe the scenario and expected outcome
+- Mock external services (Stripe, Clerk, AWS) — never call real APIs in tests
+
+## Security
+- NEVER log PII (email, phone, SSN, financial account numbers)
+- NEVER expose internal error details to API responses
+- ALWAYS validate and sanitize user input via Zod before use
+- ALWAYS use parameterized queries — never string-concatenate SQL
+- ALWAYS set tenant context before database queries — RLS prevents accidental leaks
+
+## HOA Domain Knowledge
+- A "tenant" in our system is an HOA (the Clerk Organization)
+- A "member" is a homeowner or resident — not a platform user
+- A single user can belong to multiple HOAs with different roles
+- Violations follow a strict state machine — never skip states without explicit board override
+- Financial operations require separation of duties (maker ≠ checker)
+- Multi-state compliance: check the compliance_profiles table before applying any state-specific rule
+- Washington State (RCW 64.38 / WUCIOA RCW 64.90) is the primary compliance baseline
+
+## Git
+- Atomic commits with descriptive messages: `feat(violations): add courtesy notice generation`
+- Prefixes: feat, fix, refactor, docs, test, chore, perf
+- Include the domain scope: (violations), (finance), (auth), (mobile), (infra)
+- One logical change per commit — don't mix unrelated changes

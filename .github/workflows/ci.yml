@@ -1,0 +1,22 @@
+name: CI/CD
+on:
+  push: { branches: ["main"] }
+  pull_request: { types: [opened, synchronize] }
+env:
+  NODE_VERSION: "22"
+jobs:
+  quality:
+    name: Lint, Types, Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: "pnpm" }
+      - name: Turborepo Cache
+        uses: rharkor/caching-for-turbo@v2.2.1
+      - run: pnpm install --frozen-lockfile
+      - run: turbo run lint check-types test --affected
