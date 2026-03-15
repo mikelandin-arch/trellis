@@ -1,5 +1,6 @@
 import { Stack, type StackProps } from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import type { Construct } from 'constructs';
 
 interface TrellisNetworkStackProps extends StackProps {
@@ -58,5 +59,45 @@ export class TrellisNetworkStack extends Stack {
       ec2.Port.tcp(5432),
       'Allow App Runner to reach RDS',
     );
+
+    const bastionSecurityGroup = new ec2.SecurityGroup(
+      this,
+      'BastionSecurityGroup',
+      {
+        vpc: this.vpc,
+        securityGroupName: `${stage}-trellis-bastion-sg`,
+        description: 'Security group for SSM bastion host',
+      },
+    );
+
+    this.dbSecurityGroup.addIngressRule(
+      bastionSecurityGroup,
+      ec2.Port.tcp(5432),
+      'Allow bastion to reach RDS',
+    );
+
+    const bastionRole = new iam.Role(this, 'BastionRole', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'AmazonSSMManagedInstanceCore',
+        ),
+      ],
+    });
+
+    new ec2.Instance(this, 'Bastion', {
+      instanceName: `${stage}-trellis-bastion`,
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.T4G,
+        ec2.InstanceSize.NANO,
+      ),
+      machineImage: ec2.MachineImage.latestAmazonLinux2023({
+        cpuType: ec2.AmazonLinuxCpuType.ARM_64,
+      }),
+      vpc: this.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      securityGroup: bastionSecurityGroup,
+      role: bastionRole,
+    });
   }
 }
