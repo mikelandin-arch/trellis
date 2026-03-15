@@ -1,2 +1,9 @@
-// Step 8 in SETUP_INSTRUCTIONS.md: Use Cursor to generate Drizzle schemas from schema.sql
+export * from './helpers';
 export * from './platform';
+export * from './community';
+export * from './ownership';
+export * from './financial';
+export * from './governance';
+export * from './operations';
+export * from './communications';
+export * from './audit';

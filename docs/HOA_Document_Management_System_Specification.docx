@@ -1,0 +1,1687 @@
+**HOA Document Management System**
+
+Comprehensive Feature Specification
+
+Prepared for: Talasera HOA Platform Project
+
+Version 1.0 \| March 2026
+
+*DELIVERABLES: Document Taxonomy • Access Control Matrix • Workflow
+Diagrams • Template Requirements • Technical Architecture • Feature
+Specification*
+
+Table of Contents
+
+1\. Executive Summary
+
+This specification defines a comprehensive document management system
+(DMS) for an HOA management SaaS platform. The system is designed to
+serve self-managed and professionally managed homeowners associations,
+starting with Talasera HOA (Washington State) and scaling to any
+subscribing HOA nationwide.
+
+The DMS addresses critical gaps identified in existing
+platforms---particularly PayHOA, which lacks document versioning,
+e-signatures, compliance tracking, retention automation, and template
+sophistication. No platform in the self-managed HOA tier currently
+provides true compliance-grade document management with version control,
+audit trails, automated retention, or regulatory calendars.
+
+This specification covers six deliverables: (1) a complete document
+taxonomy covering 70+ document types across 12 categories, (2) an access
+control matrix mapping every document type to the platform\'s 9-role
+RBAC model, (3) document workflow diagrams for core operations, (4) a
+template requirements list with merge field specifications, (5)
+technical architecture recommendations with specific technology choices,
+and (6) a feature specification covering search, versioning, sharing,
+and compliance.
+
+The architecture is designed for multi-state compliance, with Washington
+State (RCW 64.38 and WUCIOA/RCW 64.90) as the initial implementation and
+configurable compliance engines for all 50 states.
+
+2\. Document Taxonomy
+
+The following taxonomy identifies every document type an HOA needs to
+manage, organized into 12 categories. For each document type, the table
+specifies who creates it, the retention requirement (drawn from
+Washington State statute and IRS requirements as the baseline, with
+multi-state configurability), versioning needs, e-signature
+applicability, and common file formats.
+
+2.1 Governing Documents
+
+Governing documents are the foundational legal instruments of an HOA.
+They are permanent records under both Washington State law (RCW
+64.38.045(4)(d)) and general best practice. These documents are amended
+infrequently but require meticulous version control when changes occur.
+
+  --------------- --------------------- --------------- ------------------ -------------- -------------
+  **Document      **Created By**        **Retention**   **Versioning       **E-Sign?**    **Formats**
+  Type**                                                Need**                            
+
+  CC&Rs           Developer/Attorney;   Permanent       Critical---track   Yes            PDF, DOCX
+  (Declaration)   Board amends                          all amendments     (amendments)   
+                                                        with dates                        
+
+  Bylaws          Developer/Attorney;   Permanent       Critical---track   Yes            PDF, DOCX
+                  Board amends                          amendments         (amendments)   
+
+  Articles of     Attorney at formation Permanent       Critical---track   Yes            PDF
+  Incorporation                                         amendments         (amendments)   
+
+  Rules &         Board creates/amends  Permanent       High---track each  Optional       PDF, DOCX
+  Regulations                           (current);      revision with                     
+                                        superseded      effective date                    
+                                        versions 7                                        
+                                        years                                             
+
+  Architectural   Board/ARC creates     Permanent       High---seasonal or Optional       PDF, DOCX
+  Guidelines                            (current);      annual updates                    
+                                        prior versions  common                            
+                                        7 years                                           
+
+  Plat Maps /     Developer/Surveyor    Permanent       Low---rarely       No             PDF, TIFF,
+  Site Plans                                            changes                           DWG
+
+  Board           Board Secretary       Permanent (RCW  Medium---each is a Yes (board     PDF, DOCX
+  Resolutions                           24.03A)         unique record      signatures)    
+
+  Policies        Board creates         Permanent       High---policy      Optional       PDF, DOCX
+  (Collections,                         (current);      updates require                   
+  Investment,                           superseded 7    tracking                          
+  etc.)                                 years                                             
+  --------------- --------------------- --------------- ------------------ -------------- -------------
+
+2.2 Financial Documents
+
+Financial records require 7-year retention per IRS requirements and
+Washington State statute (RCW 64.38.045(4)(e)). The platform must
+support both cash and accrual basis accounting with fund-level document
+segregation (operating vs. reserve).
+
+  -------------------- -------------------- --------------- ---------------------- -------------- -------------
+  **Document Type**    **Created By**       **Retention**   **Versioning**         **E-Sign?**    **Formats**
+
+  Annual Financial     Treasurer/CPA        7 years from    Medium---annual        No             PDF, XLSX
+  Statements                                date of         snapshots                             
+                                            statement                                             
+
+  Annual Budget        Treasurer/Board      7 years         High---drafts through  Yes (board     PDF, XLSX
+                                                            final approval         approval)      
+
+  Tax Returns (1120-H) CPA/Tax preparer     7 years from    Low---final version    No             PDF
+                                            filing date     only                                  
+
+  Bank Statements      Financial            7 years from    None---point-in-time   No             PDF
+                       institution          date of record  records                               
+
+  Assessment Payment   System-generated     7 years from    None---transaction log No             PDF, CSV
+  Records                                   date of                                               
+                                            transaction                                           
+
+  Accounts             Bookkeeper/Manager   7 years         None---transaction     No             PDF, CSV
+  Payable/Receivable                                        records                               
+
+  Reserve Study        Reserve specialist   Maintain        High---annual updates, No             PDF
+                                            current; prior  new studies every 3                   
+                                            7 years         years (WA)                            
+
+  Reserve Fund         Treasurer            7 years         Medium---track         No             PDF, XLSX
+  Investment Records                                        allocation changes                    
+
+  Audit Reports        Independent CPA      7 years         Low---final only       Yes (CPA       PDF
+                                                                                   attestation)   
+
+  Assessment Lien      Attorney/Manager     7 years after   Medium---track lien    Yes            PDF
+  Records                                   resolution      lifecycle                             
+
+  Invoices & Receipts  Vendors/System       7 years         None---source records  No             PDF, JPG, PNG
+
+  Check Images         Bank/System          7 years         None---source records  No             PDF, JPG
+  -------------------- -------------------- --------------- ---------------------- -------------- -------------
+
+2.3 Meeting Documents
+
+Meeting documents encompass the full lifecycle from scheduling through
+minutes approval. Washington State requires 14--50 day advance notice
+for owner meetings, and minutes must be available to owners within 60
+days. Minutes are permanent records; ballots and proxies are retained
+for 1 year.
+
+  ------------------ --------------------- ------------------ ------------------- -------------- -------------
+  **Document Type**  **Created By**        **Retention**      **Versioning**      **E-Sign?**    **Formats**
+
+  Meeting Notices    Board                 7 years            Medium---track each No             PDF, DOCX
+  (Annual/Special)   Secretary/Manager                        notice sent                        
+
+  Meeting Agendas    Board                 7 years            Medium---draft to   No             PDF, DOCX
+                     President/Manager                        final                              
+
+  Board Meeting      Board Secretary       Permanent (RCW     Critical---draft,   Yes (Secretary PDF, DOCX
+  Minutes                                  64.38.045(4)(a))   review, approved    attestation)   
+                                                              versions                           
+
+  Owner Meeting      Board Secretary       Permanent          Critical---draft    Yes (Secretary PDF, DOCX
+  Minutes                                                     through approved    attestation)   
+
+  Annual Meeting     Board/Manager         7 years            Medium---compiled   No             PDF
+  Packet                                                      package                            
+
+  Proxies            Homeowners            1 year after       None---source       Yes (owner     PDF, JPG
+                                           election/vote      records             signature)     
+
+  Ballots            System/Homeowners     1 year after       None---source       No             PDF
+                                           election/vote      records                            
+
+  Voting Results /   Board                 Permanent (as part Low---final only    No             PDF
+  Tally Sheets       Secretary/Inspector   of minutes)                                           
+
+  Executive Session  Board Secretary       Permanent (as part Low---recorded in   No             PDF, DOCX
+  Motions                                  of minutes)        open-session                       
+                                                              minutes                            
+
+  Board Meeting      Board/Manager         Current + 1 year   Low---annual        No             PDF, ICS
+  Calendar                                                    publication                        
+  ------------------ --------------------- ------------------ ------------------- -------------- -------------
+
+2.4 Compliance & Enforcement Documents
+
+Enforcement records must be retained for 7 years after the decision (RCW
+64.38.045(4)(j)). Washington requires written notice of the specific
+violation before any fine, an opportunity to be heard, and a previously
+established fine schedule. The platform must track the full violation
+lifecycle and maintain evidentiary chain-of-custody for all documents.
+
+  ------------------- ------------------------- --------------- -------------------- ------------- -------------
+  **Document Type**   **Created By**            **Retention**   **Versioning**       **E-Sign?**   **Formats**
+
+  Violation Notices   Manager/Board             7 years from    Medium---track       No            PDF, DOCX
+  (Courtesy)                                    decision date   notice sequence                    
+
+  Violation Notices   Manager/Board             7 years from    Medium---legally     No            PDF, DOCX
+  (Formal)                                      decision date   required                           
+
+  Violation Evidence  Inspector/Manager/Owner   7 years from    None---original      No            JPG, PNG,
+  (Photos/Video)      reporter                  decision date   evidence immutable                 MP4, PDF
+
+  Hearing Notices     Board Secretary           7 years from    Low                  No            PDF, DOCX
+                                                decision date                                      
+
+  Hearing             Board Secretary           7 years from    Critical---written   Yes (Board    PDF, DOCX
+  Minutes/Decisions                             decision date   decision required    signature)    
+
+  Fine Schedule       Board                     Permanent       High---must be       No            PDF, DOCX
+                                                (current);      furnished to all                   
+                                                prior 7 years   owners                             
+
+  Fine Assessment     System-generated          7 years         None---transaction   No            PDF
+  Records                                                       records                            
+
+  Compliance          Manager/Board             7 years         Low                  Yes           PDF
+  Certificates                                                                                     
+
+  Collection Demand   Attorney/Manager          7 years after   Medium---track       No            PDF, DOCX
+  Letters                                       resolution      escalation                         
+
+  Lien Filing         Attorney                  7 years after   Medium---track       Yes           PDF
+  Documents                                     resolution      filing lifecycle                   
+  ------------------- ------------------------- --------------- -------------------- ------------- -------------
+
+2.5 Architectural Review Documents
+
+ARC decision materials must be retained for 7 years (RCW
+64.38.045(4)(i)). Under WUCIOA, all ARC committee decisions must be
+individually approved by the board. EV charging station applications
+have a mandatory 60-day deemed-approval deadline. The system must track
+protected modification categories that cannot be prohibited (flags,
+solar, EV, heat pumps, pollinators).
+
+  ----------------- ---------------------- --------------- ----------------------- ------------------- -------------
+  **Document Type** **Created By**         **Retention**   **Versioning**          **E-Sign?**         **Formats**
+
+  ARC Application   Homeowner              7 years from    Low---submitted once    Yes (owner          PDF, DOCX,
+  Forms                                    ARC decision    per request             signature)          Web Form
+
+  Architectural     Homeowner/Contractor   7 years from    Medium---revisions      No                  PDF, DWG, JPG
+  Plans/Drawings                           ARC decision    during review                               
+
+  ARC Review Notes  ARC Committee          7 years from    Medium---review         No                  PDF, DOCX
+                                           decision        iterations                                  
+
+  ARC               ARC Committee/Board    7 years from    Critical---must cite    Yes                 PDF, DOCX
+  Approval/Denial                          decision        specific standards      (Committee/Board)   
+  Letters                                                                                              
+
+  ARC Inspection    Inspector/Manager      7 years from    Low---post-completion   No                  PDF, DOCX,
+  Reports                                  decision        verification                                JPG
+
+  Modification      Inspector/Board        7 years         Low                     Yes                 PDF
+  Completion                                                                                           
+  Certificates                                                                                         
+
+  Prior Decision    System-maintained      Permanent       High---consistency      No                  Database
+  Reference                                                tracking                                    
+  Database                                                                                             
+  ----------------- ---------------------- --------------- ----------------------- ------------------- -------------
+
+2.6 Insurance & Risk Management Documents
+
+  -------------- ---------------------- --------------- ---------------------- ------------- -------------
+  **Document     **Created By**         **Retention**   **Versioning**         **E-Sign?**   **Formats**
+  Type**                                                                                     
+
+  Master         Insurance carrier      While current + Medium---annual        No            PDF
+  Insurance                             7 years after   renewals                             
+  Policies                              expiration                                           
+
+  Insurance      Insurance              While current + Medium---track         No            PDF
+  Certificates   carrier/Vendors        7 years         renewals/expirations                 
+  (COIs)                                                                                     
+
+  D&O Insurance  Insurance carrier      While current + Medium                 No            PDF
+  Policies                              7 years                                              
+
+  Fidelity       Insurance carrier      While current + Medium                 No            PDF
+  Bond/Crime                            7 years                                              
+  Insurance                                                                                  
+
+  Claims Records Manager/Attorney       7 years after   Medium---track claim   No            PDF, DOCX
+                                        resolution      lifecycle                            
+
+  Incident       Manager/Board          7 years         Low---filed at time of Yes (reporter PDF, DOCX,
+  Reports        member/Resident                        incident               signature)    Web Form
+
+  Safety         Inspector/Manager      7 years         Low                    No            PDF
+  Inspection                                                                                 
+  Reports                                                                                    
+
+  Warranties     Developer/Contractor   While current   Low                    No            PDF
+  (Common Area)                                                                              
+  -------------- ---------------------- --------------- ---------------------- ------------- -------------
+
+2.7 Vendor & Contract Management Documents
+
+All contracts must be retained for 7 years after contract end date (RCW
+64.38.045(4)(h)). The platform must track contract terms, renewal dates,
+insurance requirements, and performance metrics.
+
+  ---------------------- ------------------ --------------- ------------------------ ----------------- -------------
+  **Document Type**      **Created By**     **Retention**   **Versioning**           **E-Sign?**       **Formats**
+
+  Vendor                 Manager/Attorney   7 years after   Critical---amendments,   Yes (both         PDF, DOCX
+  Contracts/Agreements                      contract end    renewals                 parties)          
+
+  Vendor Insurance       Vendor             While contract  Medium---annual renewals No                PDF
+  Certificates                              active + 7                                                 
+                                            years                                                      
+
+  Vendor W-9 Forms       Vendor             7 years         Low---updated when info  No                PDF
+                                                            changes                                    
+
+  Vendor Proposals/Bids  Vendor             7 years         Low---submitted once     No                PDF, DOCX
+
+  Work Orders            Manager/Board      7 years         Medium---status changes  Yes               PDF, DOCX
+                                                                                     (authorization)   
+
+  Vendor Performance     Manager/Board      7 years         Low                      No                PDF, DOCX
+  Reviews                                                                                              
+
+  Maintenance Logs       Vendor/Manager     7 years         None---append-only log   No                PDF, CSV
+
+  1099 Tax Forms         System-generated   7 years from    Low---final only         No                PDF
+                                            filing                                                     
+  ---------------------- ------------------ --------------- ------------------------ ----------------- -------------
+
+2.8 Legal Documents
+
+  ----------------------- --------------------- --------------- ---------------------- ------------- -------------
+  **Document Type**       **Created By**        **Retention**   **Versioning**         **E-Sign?**   **Formats**
+
+  Attorney Correspondence Attorney              Duration of     Medium---track         No            PDF, DOCX,
+                                                matter + 7      communication chain                  EML
+                                                years                                                
+
+  Litigation Files        Attorney              Duration of     High---track case      No            PDF
+                                                matter + 7      lifecycle                            
+                                                years                                                
+
+  Settlement Agreements   Attorney              Permanent       Critical---binding     Yes           PDF
+                                                                obligations                          
+
+  Court Orders/Judgments  Court                 Permanent       None---court-issued    No            PDF
+                                                                originals                            
+
+  Mediation/Arbitration   Mediator/Arbitrator   7 years after   Medium                 No            PDF
+  Records                                       resolution                                           
+
+  Legal Opinions          Attorney              Permanent       Low---point-in-time    No            PDF
+                                                                opinions                             
+
+  Demand Letters          Attorney/Manager      7 years after   Medium---escalation    No            PDF, DOCX
+                                                resolution      tracking                             
+
+  Pre-Foreclosure Notices Attorney/System       While account   Critical---statutory   No            PDF
+                                                delinquent + 7  language required                    
+                                                years                                                
+  ----------------------- --------------------- --------------- ---------------------- ------------- -------------
+
+2.9 Communications & Correspondence
+
+  ---------------------- ------------------ --------------- ---------------------- ------------- -------------
+  **Document Type**      **Created By**     **Retention**   **Versioning**         **E-Sign?**   **Formats**
+
+  Owner Notices          Board/Manager      3 years         Low                    No            PDF, DOCX,
+  (General)                                                                                      Email
+
+  Newsletter/Community   Board/Manager      3 years         Low                    No            PDF, HTML
+  Updates                                                                                        
+
+  Records Request        Owner/Manager      7 years         Medium---track request No            PDF, DOCX,
+  Correspondence                                            lifecycle                            Email
+
+  Records Request        System-generated   7 years         None---audit trail     No            PDF, CSV
+  Fulfillment Logs                                                                               
+
+  Welcome Packets        Manager/Board      Current version Medium---updated       No            PDF, DOCX
+                                                            periodically                         
+
+  Emergency              Board/Manager      3 years         None---point-in-time   No            SMS, Email,
+  Notifications                                                                                  PDF
+
+  Owner                  Owner/System       7 years         Medium---track         No            PDF, Email,
+  Complaint/Inquiry                                         resolution                           Web
+  Records                                                                                        
+  ---------------------- ------------------ --------------- ---------------------- ------------- -------------
+
+2.10 Administrative & Operational Documents
+
+  ------------------ ------------------- ------------------ -------------------- ------------- -------------
+  **Document Type**  **Created By**      **Retention**      **Versioning**       **E-Sign?**   **Formats**
+
+  Owner Roster       System/Manager      Maintain current   High---track changes No            PDF, CSV,
+                                         (RCW                                                  XLSX
+                                         64.38.045(4)(c))                                      
+
+  Board/Officer      Board Secretary     Maintain current   Medium               No            PDF, CSV
+  Roster                                 (RCW                                                  
+                                         64.38.045(4)(f))                                      
+
+  Secretary of State Manager/Board       Most recent on     Low                  No            PDF
+  Annual Report                          file                                                  
+
+  EIN Documentation  IRS                 Permanent          None                 No            PDF
+
+  Common Area        Manager             3 years            None---append-only   No            CSV, PDF
+  Key/Access Logs                                                                              
+
+  Amenity            System/Homeowners   3 years            None                 No            PDF, CSV
+  Reservation                                                                                  
+  Records                                                                                      
+
+  Move-In/Move-Out   Manager/System      7 years            Low                  No            PDF
+  Records                                                                                      
+
+  Vendor Directory   Manager             Current            Medium               No            Database
+  ------------------ ------------------- ------------------ -------------------- ------------- -------------
+
+2.11 Election & Voting Documents
+
+  ----------------- ------------------ ------------------ ------------------ ------------- -------------
+  **Document Type** **Created By**     **Retention**      **Versioning**     **E-Sign?**   **Formats**
+
+  Election Notices  Board Secretary    1 year after       Low                No            PDF, DOCX
+                                       election                                            
+
+  Candidate         Homeowner          1 year after       Low                Yes           PDF, Web Form
+  Nomination Forms  candidates         election                              (candidate    
+                                                                             signature)    
+
+  Candidate         Candidates         1 year after       Low                No            PDF, DOCX
+  Statements/Bios                      election                                            
+
+  Ballot Templates  Board/System       1 year after       Medium---draft to  No            PDF
+                                       election           final                            
+
+  Completed Ballots Homeowners         1 year after       None---immutable   No            PDF, Digital
+  (secret)                             election (RCW                                       
+                                       64.38.045(4)(n))                                    
+
+  Voter             System/Inspector   1 year after       None---audit trail No            CSV, Database
+  Verification                         election                                            
+  Records                                                                                  
+
+  Election Results  Inspector of       Permanent (as part Low                Yes           PDF
+  Certification     Elections          of minutes)                           (Inspector)   
+
+  Petition Forms    Homeowners         7 years            Low                Yes (owner    PDF
+                                                                             signatures)   
+  ----------------- ------------------ ------------------ ------------------ ------------- -------------
+
+2.12 Resale & Transfer Documents
+
+  --------------------- ------------------ --------------- -------------------- ----------------- -------------
+  **Document Type**     **Created By**     **Retention**   **Versioning**       **E-Sign?**       **Formats**
+
+  Resale Certificate /  Manager/System     7 years         Medium---generated   Yes               PDF
+  Disclosure Packet                                        per transaction      (Board/Manager)   
+
+  HOA Status Letter     Manager/System     7 years         Low                  Yes               PDF
+
+  Transfer/Conveyance   Title              7 years         Low                  No                PDF
+  Records               company/Manager                                                           
+
+  Estoppel Certificate  Manager/Attorney   7 years         Low                  Yes               PDF
+
+  Demand Payoff         Manager/System     7 years         Low                  No                PDF
+  Statement                                                                                       
+  --------------------- ------------------ --------------- -------------------- ----------------- -------------
+
+3\. Access Control Matrix by Document Type and Role
+
+This matrix maps document access permissions to the platform\'s 9-role
+RBAC model. Permissions follow a default-deny model with tenant
+isolation enforced at the database layer via PostgreSQL Row-Level
+Security. Each permission level is defined as follows:
+
+**FULL:** Create, read, update, delete, share, manage permissions
+
+**MANAGE:** Create, read, update, share (no delete, no permission
+changes)
+
+**EDIT:** Create, read, update (no delete, no share)
+
+**VIEW:** Read-only access
+
+**OWN:** Access only to documents related to own property/account
+
+**SCOPED:** Access limited to specific work-order or engagement context
+
+**NONE:** No access
+
+3.1 Access Matrix: Governing & Legal Documents
+
+Governing documents are broadly accessible for viewing since they define
+the rules all members must follow. Edit access is restricted to board
+leadership and management roles.
+
+  ---------------- --------- --------- ---------- --------- --------- --------------- ------------ ------------ -------------
+  **Document       **Super   **Board   **Board    **Prop.   **Comm.   **Homeowner**   **Tenant**   **Vendor**   **Auditor**
+  Type**           Admin**   Pres.**   Member**   Mgmt.**   Mgr.**                                              
+
+  CC&Rs /          FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            VIEW         NONE         NONE
+  Declaration                                                                                                   
+
+  Bylaws           FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            VIEW         NONE         NONE
+
+  Rules &          FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            VIEW         NONE         NONE
+  Regulations                                                                                                   
+
+  Architectural    FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            VIEW         NONE         NONE
+  Guidelines                                                                                                    
+
+  Board            FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            NONE         NONE         NONE
+  Resolutions                                                                                                   
+
+  Articles of      FULL      FULL      VIEW       MANAGE    VIEW      VIEW            NONE         NONE         NONE
+  Incorporation                                                                                                 
+
+  Plat Maps        FULL      FULL      VIEW       MANAGE    VIEW      VIEW            VIEW         SCOPED       NONE
+
+  Attorney         FULL      FULL      VIEW       VIEW      VIEW      NONE            NONE         NONE         NONE
+  Correspondence                                                                                                
+
+  Litigation Files FULL      FULL      NONE       VIEW      NONE      NONE            NONE         NONE         NONE
+
+  Settlement       FULL      FULL      VIEW       VIEW      VIEW      NONE            NONE         NONE         NONE
+  Agreements                                                                                                    
+  ---------------- --------- --------- ---------- --------- --------- --------------- ------------ ------------ -------------
+
+3.2 Access Matrix: Financial Documents
+
+  ------------ --------- --------- ---------- --------- --------- --------------- ------------ ------------ -------------
+  **Document   **Super   **Board   **Board    **Prop.   **Comm.   **Homeowner**   **Tenant**   **Vendor**   **Auditor**
+  Type**       Admin**   Pres.**   Member**   Mgmt.**   Mgr.**                                              
+
+  Financial    FULL      FULL      VIEW       FULL      EDIT      VIEW            NONE         NONE         VIEW
+  Statements                                                                                                
+
+  Annual       FULL      FULL      VIEW       FULL      EDIT      VIEW            NONE         NONE         VIEW
+  Budget                                                                                                    
+
+  Tax Returns  FULL      FULL      VIEW       FULL      VIEW      NONE            NONE         NONE         VIEW
+
+  Bank         FULL      FULL      VIEW       FULL      VIEW      NONE            NONE         NONE         VIEW
+  Statements                                                                                                
+
+  Assessment   FULL      FULL      VIEW       FULL      EDIT      OWN             NONE         NONE         VIEW
+  Records                                                                                                   
+
+  Reserve      FULL      FULL      VIEW       FULL      EDIT      VIEW            NONE         NONE         VIEW
+  Study                                                                                                     
+
+  Audit        FULL      FULL      VIEW       FULL      VIEW      VIEW            NONE         NONE         VIEW
+  Reports                                                                                                   
+
+  Invoices &   FULL      FULL      VIEW       FULL      EDIT      NONE            NONE         OWN          VIEW
+  Receipts                                                                                                  
+
+  Lien Records FULL      FULL      VIEW       FULL      EDIT      OWN             NONE         NONE         VIEW
+  ------------ --------- --------- ---------- --------- --------- --------------- ------------ ------------ -------------
+
+3.3 Access Matrix: Meeting, Compliance, ARC, and Operational
+
+  ----------------- --------- --------- ---------- --------- --------- --------------- ------------ ------------ -------------
+  **Document Type** **Super   **Board   **Board    **Prop.   **Comm.   **Homeowner**   **Tenant**   **Vendor**   **Auditor**
+                    Admin**   Pres.**   Member**   Mgmt.**   Mgr.**                                              
+
+  Meeting Minutes   FULL      FULL      MANAGE     MANAGE    MANAGE    VIEW            NONE         NONE         NONE
+
+  Meeting           FULL      FULL      MANAGE     MANAGE    MANAGE    VIEW            NONE         NONE         NONE
+  Notices/Agendas                                                                                                
+
+  Proxies & Ballots FULL      FULL      VIEW       MANAGE    MANAGE    OWN             NONE         NONE         NONE
+
+  Violation Records FULL      FULL      VIEW       FULL      MANAGE    OWN             NONE         NONE         NONE
+
+  Fine Schedule     FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            VIEW         NONE         NONE
+
+  ARC Applications  FULL      FULL      VIEW       FULL      MANAGE    OWN             NONE         NONE         NONE
+
+  ARC Decisions     FULL      FULL      VIEW       MANAGE    MANAGE    OWN             NONE         NONE         NONE
+
+  Insurance         FULL      FULL      VIEW       FULL      MANAGE    NONE            NONE         NONE         VIEW
+  Policies                                                                                                       
+
+  Vendor Contracts  FULL      FULL      VIEW       FULL      MANAGE    NONE            NONE         SCOPED       VIEW
+
+  Owner Roster      FULL      FULL      VIEW       FULL      MANAGE    VIEW\*          NONE         NONE         NONE
+
+  Resale            FULL      FULL      VIEW       FULL      MANAGE    OWN             NONE         NONE         NONE
+  Certificates                                                                                                   
+
+  Election          FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            NONE         NONE         NONE
+  Materials                                                                                                      
+
+  Welcome Packet    FULL      FULL      VIEW       MANAGE    MANAGE    VIEW            VIEW         NONE         NONE
+
+  Work Orders       FULL      FULL      VIEW       FULL      MANAGE    NONE            NONE         SCOPED       NONE
+  ----------------- --------- --------- ---------- --------- --------- --------------- ------------ ------------ -------------
+
+\* Owner Roster access for homeowners: VIEW with Address Confidentiality
+Program (ACP) redaction applied. Owners receive one free annual
+electronic or paper copy per RCW 64.38.045(8)(b). Addresses of ACP
+participants must be automatically redacted.
+
+4\. Document Workflow Diagrams
+
+The following workflow specifications describe the key document-centric
+processes in the system. Each workflow identifies actors, trigger
+conditions, process steps, decision points, and system behaviors. These
+are designed to be implemented as configurable state machines with
+event-driven transitions.
+
+4.1 Document Upload and Processing Pipeline
+
+This is the universal workflow triggered whenever any document enters
+the system, whether uploaded manually, generated by the platform,
+received via email, or ingested via API.
+
+**Step 1 --- Ingest:** User uploads file or system generates document.
+System captures: uploader identity, timestamp, source
+(manual/system/email/API), associated entity (property, violation, ARC
+case, etc.).
+
+**Step 2 --- Virus Scan:** File passes through ClamAV or equivalent
+malware scanner. Quarantine if flagged; notify admin. Block file from
+entering document store until cleared.
+
+**Step 3 --- Format Validation:** Verify file type against allowlist
+(PDF, DOCX, XLSX, JPG, PNG, TIFF, MP4, CSV, DWG). Reject unsupported
+formats with user-friendly error. Enforce file size limits (100MB
+default, configurable per tenant).
+
+**Step 4 --- Metadata Extraction:** Auto-extract metadata: file size,
+page count, creation date, author (from file metadata). AI-assisted
+classification: suggest document type, category, and tags based on
+content analysis.
+
+**Step 5 --- OCR Processing:** For scanned PDFs and images: queue for
+asynchronous OCR via Amazon Textract. Extract text layer, store as
+searchable PDF. Calculate and store OCR confidence score. Flag
+low-confidence pages for human review.
+
+**Step 6 --- Search Indexing:** Push document metadata, extracted text,
+and OCR output to OpenSearch/Elasticsearch index. Index at page level
+with document-level backreferences. Apply field boosts: title (3x),
+headings (2x), body text (1x), tags (0.8x).
+
+**Step 7 --- Storage:** Store original file in S3 with server-side
+encryption (AES-256). Generate thumbnail/preview renditions. Apply
+retention policy based on document type classification. Record in audit
+log: document_id, uploader, timestamp, classification, retention_policy.
+
+**Step 8 --- Notification:** If document is associated with a workflow
+(e.g., ARC application, violation case), notify relevant parties. If
+document requires review/approval, create task and assign to appropriate
+role.
+
+4.2 Records Request Fulfillment Workflow
+
+This workflow implements compliance with Washington State\'s 10-day
+acknowledgment / 21-day production requirement (WUCIOA) and is
+configurable for all state response deadlines.
+
+**Step 1 --- Request Intake:** Owner submits records request via portal,
+email, or paper (scanned). System captures: requester identity, date
+received, specific documents/categories requested. Clock starts
+immediately.
+
+**Step 2 --- Auto-Acknowledge:** System sends acknowledgment within 24
+hours (well within 10-business-day requirement). Acknowledgment
+includes: request reference number, estimated completion date,
+applicable fees.
+
+**Step 3 --- Document Assembly:** Manager receives task with deadline
+countdown. System auto-suggests documents matching the request. Manager
+reviews, adds/removes documents from fulfillment package.
+
+**Step 4 --- Exemption Review:** System flags potentially exempt
+documents: attorney-client privileged, personnel records, pending
+litigation, individual enforcement records (identifying other owners),
+individual account records. Manager confirms exemptions; system logs
+reasoning.
+
+**Step 5 --- Redaction:** For documents containing Address
+Confidentiality Program participants: auto-redact addresses. For
+documents with PII of non-requesting owners: manual or AI-assisted
+redaction. Generate redacted versions; preserve originals.
+
+**Step 6 --- Fee Calculation:** Calculate copy fees per state-specific
+formula. Washington: reasonable fee (board-set policy). Arizona:
+\$0.15/page max. California: direct and actual cost. System applies one
+free annual owner list per RCW 64.38.045(8)(b).
+
+**Step 7 --- Delivery:** Deliver via secure download link (preferred) or
+physical mail. Track delivery confirmation. Record: documents provided,
+documents withheld with reasons, fees charged, delivery method, delivery
+date.
+
+**Step 8 --- Deadline Monitoring:** System monitors approaching
+deadlines with escalating alerts: 50% of time elapsed (yellow), 75%
+(orange), 90% (red), deadline passed (critical + notification to board
+president). Track penalty exposure per state (e.g., Florida \$50/day,
+California \$500/violation, Nevada \$25/day).
+
+4.3 Governing Document Amendment Workflow
+
+**Step 1 --- Draft:** Board or attorney creates draft amendment. System
+creates new version branch from current governing document. Track all
+changes with full diff capability.
+
+**Step 2 --- Board Review:** Distribute draft to all board members.
+Collect comments and suggested changes via in-document collaboration or
+discussion thread. Board votes to approve sending to membership.
+
+**Step 3 --- Member Notice:** Generate and distribute notice of proposed
+amendment per statutory requirements. Include full text of proposed
+changes (required by WA statute). Track delivery via multi-channel
+distribution.
+
+**Step 4 --- Vote:** Conduct vote per governing document amendment
+requirements (typically 67% of total membership). System manages ballot
+distribution, collection, verification, and counting.
+
+**Step 5 --- Recording:** If approved, prepare amendment for recording
+with county recorder. Generate clean version incorporating all
+amendments. E-signature collection for required signatories.
+
+**Step 6 --- Publication:** Publish updated governing document to owner
+portal. Notify all members of effective date. Archive prior version with
+clear superseded marking. Update version history timeline.
+
+4.4 Document Version Control Workflow
+
+**Step 1 --- Check-Out:** User requests edit access to a versioned
+document. System creates lock preventing concurrent edits. Lock is
+time-bounded (configurable, default 4 hours) with automatic release and
+notification.
+
+**Step 2 --- Edit:** User modifies document (in-platform editor or
+download/re-upload). System tracks: editor identity, timestamp, change
+description (required field).
+
+**Step 3 --- Check-In:** User saves new version. System stores complete
+version (not deltas---storage is cheap, reliability is paramount).
+Auto-generates diff between new and previous version. Increments version
+number per semantic scheme: major.minor (e.g., CC&Rs v3.0 → v3.1 for
+minor edit, v4.0 for formal amendment).
+
+**Step 4 --- Review (if required):** For documents requiring approval
+(governing docs, financial reports, minutes): route to approver(s).
+Approval workflow configurable per document type. Rejected versions
+remain in history but are marked as rejected.
+
+**Step 5 --- Publish:** Approved version becomes the current active
+version. Prior version moves to version history with clear status
+labels: Current, Approved, Draft, Superseded, Rejected.
+
+**Audit Trail:** Every version stores: version number, timestamp,
+editor, approver (if applicable), change description, full document
+content, diff from previous version. Audit trail is immutable and
+tamper-evident.
+
+4.5 Document Sharing and Distribution Workflow
+
+**Bulk Distribution:** Select documents → Choose recipients (by role,
+tag, property group, individual) → Choose delivery method (email
+attachment, secure link, portal notification, physical mail via Lob) →
+Track delivery status per recipient → Record in audit log.
+
+**Secure External Sharing:** Generate time-limited, password-protected
+download link → Send to external party (attorney, vendor, auditor) →
+Track access (views, downloads) → Auto-expire link after configurable
+period (default 30 days) → Revocable at any time.
+
+**E-Signature Flow:** Select template or document → Populate merge
+fields → Define signing order and required signatories → Send via
+e-signature provider (DocuSeal recommended for self-hosted; Dropbox
+Sign/DocuSign for managed) → Track signing status → Store completed
+signed document with certificate of completion → File in appropriate
+document category.
+
+**Annual Meeting Packet Assembly:** System auto-compiles: meeting
+notice, agenda, financial statements, budget, reserve study summary,
+board candidate statements, proposed amendments, proxy form → Review by
+board → Distribute per notice requirements → Track delivery.
+
+5\. Template Requirements List
+
+The platform must provide a comprehensive template system for recurring
+documents. Templates use merge fields (denoted with {{field_name}}
+syntax) that auto-populate from the platform\'s database. Templates are
+versioned, customizable per HOA, and support multi-language variants.
+All templates must be exportable as PDF and DOCX.
+
+5.1 Meeting Document Templates
+
+  ------------- ---------------------------------- ------------------------
+  **Template    **Merge Fields**                   **Requirements/Notes**
+  Name**                                           
+
+  Annual        {{hoa_name}}, {{meeting_date}},    Must include all action
+  Meeting       {{meeting_time}},                  items, full text of
+  Notice        {{meeting_location}},              proposed amendments,
+                {{virtual_link}},                  budget details.
+                {{agenda_items}},                  Multi-channel: email,
+                {{proxy_deadline}},                mail, portal.
+                {{board_secretary_name}}           
+
+  Special       Same as annual +                   Must specify whether
+  Meeting       {{requesting_party}},              called by board,
+  Notice        {{petition_percentage}},           president, or 10% owner
+                {{special_purpose}}                petition.
+
+  Board Meeting {{hoa_name}}, {{meeting_date}},    14-day notice for
+  Notice        {{meeting_time}},                  scheduled; 7-day for
+                {{meeting_location}},              urgent. SB 5129 allows
+                {{virtual_link}},                  email without owner
+                {{agenda_summary}}                 consent for board
+                                                   meeting notices.
+
+  Meeting       {{hoa_name}}, {{meeting_type}},    Must include mandatory
+  Agenda        {{meeting_date}},                  15-minute owner comment
+                {{call_to_order}},                 period. Configurable
+                {{quorum_check}},                  sections.
+                {{owner_comment_period}},          
+                {{old_business}},                  
+                {{new_business}},                  
+                {{action_items}},                  
+                {{executive_session_motion}},      
+                {{adjournment}}                    
+
+  Meeting       {{hoa_name}}, {{meeting_type}},    Must be available to
+  Minutes       {{meeting_date}}, {{attendees}},   owners within 60 days.
+                {{quorum_status}}, {{motions}},    Draft/Approved status
+                {{vote_tallies}},                  tracking.
+                {{action_items}},                  
+                {{executive_session_reference}},   
+                {{next_meeting_date}}              
+
+  Proxy Form    {{hoa_name}}, {{meeting_date}},    Must include: date,
+                {{meeting_purpose}},               11-month validity limit,
+                {{owner_name}},                    directed vs. undirected
+                {{property_address}},              options.
+                {{proxy_holder_name}},             
+                {{directed_votes}},                
+                {{expiration_date}}                
+  ------------- ---------------------------------- ------------------------
+
+5.2 Violation & Enforcement Templates
+
+  ----------------- --------------------------------- ------------------------
+  **Template Name** **Merge Fields**                  **Requirements/Notes**
+
+  Courtesy Notice   {{owner_name}},                   Recommended first step.
+                    {{property_address}},             Not legally required but
+                    {{violation_description}},        protects against
+                    {{governing_doc_reference}},      selective enforcement
+                    {{cure_period_days}},             claims.
+                    {{cure_deadline}},                
+                    {{contact_info}}                  
+
+  Formal Violation  {{owner_name}},                   Legally required before
+  Notice            {{property_address}},             any fine (RCW
+                    {{violation_type}},               64.38.020(11)). Must
+                    {{specific_provision}},           cite exact governing
+                    {{description_with_evidence}},    document provision.
+                    {{fine_amount}},                  
+                    {{fine_schedule_reference}},      
+                    {{hearing_date}},                 
+                    {{hearing_time}},                 
+                    {{hearing_location}},             
+                    {{owner_rights_statement}}        
+
+  Hearing Notice    {{owner_name}},                   Required: opportunity to
+                    {{property_address}},             be heard by board or
+                    {{hearing_date}},                 designee.
+                    {{hearing_time}},                 
+                    {{hearing_location}},             
+                    {{violation_summary}},            
+                    {{right_to_present_evidence}},    
+                    {{right_to_witnesses}}            
+
+  Hearing Decision  {{owner_name}},                   Must state reasons and
+  Letter            {{property_address}},             cite evidence. Best
+                    {{hearing_date}}, {{decision}},   practice for legal
+                    {{reasoning}},                    defensibility.
+                    {{evidence_cited}},               
+                    {{fine_imposed}},                 
+                    {{payment_deadline}},             
+                    {{appeal_rights}}                 
+
+  Fine Assessment   {{owner_name}},                   Must reference
+  Notice            {{property_address}},             previously established
+                    {{violation_reference}},          fine schedule.
+                    {{fine_amount}}, {{fine_type}},   
+                    {{payment_deadline}},             
+                    {{payment_methods}},              
+                    {{appeal_info}}                   
+
+  Collection Demand {{owner_name}},                   WA requires Dept. of
+  Letter            {{property_address}},             Commerce contact info in
+                    {{total_owed}}, {{breakdown}},    collection notices.
+                    {{payment_deadline}},             
+                    {{consequences}},                 
+                    {{dept_of_commerce_contact}}      
+
+  Pre-Foreclosure   {{owner_name}},                   Must include statutory
+  Notice            {{property_address}},             language per RCW
+                    {{total_delinquent}},             64.38.100(1). SB 5686
+                    {{months_delinquent}},            (2025) requires
+                    {{foreclosure_threshold}},        meet-and-confer offer.
+                    {{statutory_language}},           
+                    {{dept_of_commerce_contact}},     
+                    {{meet_and_confer_offer}}         
+  ----------------- --------------------------------- ------------------------
+
+5.3 ARC Templates
+
+  ----------------------- --------------------------------- ------------------------
+  **Template Name**       **Merge Fields**                  **Requirements/Notes**
+
+  ARC Application         {{owner_name}},                   Acknowledge receipt with
+  Acknowledgment          {{application_date}},             expected timeline.
+                          {{project_description}},          
+                          {{review_deadline}},              
+                          {{committee_contact}}             
+
+  ARC Additional Info     {{owner_name}},                   For EV stations: clock
+  Request                 {{application_reference}},        pauses for reasonable
+                          {{missing_items}},                info requests.
+                          {{response_deadline}},            
+                          {{deemed_approval_note}}          
+
+  ARC Approval Letter     {{owner_name}},                   Must reference specific
+                          {{property_address}},             standards met. Include
+                          {{project_description}},          any conditions.
+                          {{conditions}},                   
+                          {{completion_deadline}},          
+                          {{inspection_requirement}},       
+                          {{approved_plans_reference}}      
+
+  ARC Denial Letter       {{owner_name}},                   Must cite specific
+                          {{property_address}},             governing document
+                          {{project_description}},          standards and explain
+                          {{denial_reasons}},               basis.
+                          {{specific_standards_cited}},     
+                          {{appeal_process}},               
+                          {{resubmission_guidance}}         
+
+  ARC                     {{owner_name}},                   Post-construction
+  Completion/Inspection   {{property_address}},             verification.
+  Report                  {{project_description}},          
+                          {{inspection_date}},              
+                          {{compliance_status}},            
+                          {{deficiencies}},                 
+                          {{correction_deadline}}           
+  ----------------------- --------------------------------- ------------------------
+
+5.4 Financial & Administrative Templates
+
+  -------------- --------------------------------- ------------------------
+  **Template     **Merge Fields**                  **Requirements/Notes**
+  Name**                                           
+
+  Assessment     {{owner_name}},                   Must offer at least one
+  Invoice        {{property_address}},             fee-free payment method
+                 {{lot_number}},                   (SB 5129).
+                 {{assessment_type}},              
+                 {{amount_due}}, {{due_date}},     
+                 {{late_fee_schedule}},            
+                 {{payment_methods}},              
+                 {{autopay_link}}                  
+
+  Delinquency    {{owner_name}},                   Must be sent within 30
+  Notice (First) {{property_address}},             days. Multilingual per
+                 {{amount_delinquent}},            RCW 64.38.100(1)(a).
+                 {{date_delinquent}},              \$10 admin fee + \$50/5%
+                 {{protected_period_info}},        late fee cap during
+                 {{admin_fee}}, {{late_fee}},      15-day protected period.
+                 {{payment_options}}               
+
+  Delinquency    {{owner_name}},                   Sent at 90+ days, 60+
+  Notice         {{property_address}},             days after first notice.
+  (Second)       {{total_owed}},                   
+                 {{payment_history}},              
+                 {{consequences}},                 
+                 {{payment_plan_offer}}            
+
+  Budget         {{hoa_name}}, {{fiscal_year}},    14--60 days after budget
+  Ratification   {{total_budget}},                 summary mailing.
+  Notice         {{assessment_amount}},            First-class mail
+                 {{reserve_contribution}},         required.
+                 {{summary_of_changes}},           
+                 {{ratification_meeting_date}}     
+
+  Welcome Packet {{owner_name}},                   Comprehensive onboarding
+                 {{property_address}},             document for new
+                 {{hoa_name}}, {{board_contacts}}, homeowners.
+                 {{manager_contact}},              
+                 {{portal_login_url}},             
+                 {{governing_docs_list}},          
+                 {{assessment_info}},              
+                 {{amenity_info}},                 
+                 {{emergency_contacts}}            
+
+  Records        {{requester_name}},               Must comply with
+  Request        {{request_date}},                 response timeline per
+  Response       {{request_reference}},            state statute.
+                 {{documents_provided}},           
+                 {{documents_withheld}},           
+                 {{withholding_reasons}},          
+                 {{copy_fees}},                    
+                 {{delivery_method}}               
+
+  Resale         {{property_address}},             State-specific content
+  Certificate    {{owner_name}},                   requirements. Generated
+                 {{assessment_status}},            on-demand.
+                 {{special_assessments}},          
+                 {{reserve_balance}},              
+                 {{pending_litigation}},           
+                 {{insurance_summary}},            
+                 {{governing_doc_amendments}},     
+                 {{violation_history}}             
+  -------------- --------------------------------- ------------------------
+
+5.5 Template System Requirements
+
+**Template Editor:** WYSIWYG editor with merge field insertion via
+dropdown/autocomplete. Preview with sample data before sending. HTML and
+PDF output from same template.
+
+**Versioning:** Each template version is numbered and dated. HOAs can
+customize platform-provided templates; customizations are preserved
+across platform updates. Revert to any prior version.
+
+**Multi-Language:** Templates support translation variants. Default:
+English. Phase 2: Spanish, Chinese, Vietnamese, Korean (top WA
+languages). Merge fields populate in the selected language where
+applicable.
+
+**Branding:** Per-HOA branding: logo, colors, fonts, contact
+information. Consistent header/footer across all generated documents.
+Custom letterhead support.
+
+**Conditional Logic:** Templates support if/then blocks (e.g., include
+EV deemed-approval language only for EV applications). Show/hide
+sections based on data conditions.
+
+**Delivery Integration:** Templates feed directly into delivery
+pipelines: email (SendGrid), physical mail (Lob), portal notification,
+SMS (Twilio). Track delivery status per template instance.
+
+6\. Technical Architecture Recommendations
+
+6.1 Storage Architecture
+
+Primary Document Storage: Amazon S3
+
+**Encryption:** Server-side encryption with AWS KMS (SSE-KMS). AES-256.
+Per-tenant encryption keys for maximum isolation. Enable S3 Object Lock
+for compliance-critical documents (governing docs, legal records) to
+prevent deletion during retention period.
+
+**Bucket Strategy:** Single bucket per environment (dev/staging/prod)
+with prefix-based tenant isolation:
+s3://hoa-platform-prod/{tenant_id}/documents/{category}/{year}/{document_id}.
+Enable S3 Versioning for immutable audit trail at the storage layer.
+Lifecycle policies: transition to S3 Intelligent-Tiering after 90 days;
+Glacier Deep Archive for documents past retention period awaiting
+disposal confirmation.
+
+**Access Control:** All S3 access via presigned URLs generated by the
+application layer. No direct bucket access. URLs expire after 15 minutes
+(configurable). CloudFront distribution for document preview delivery
+with signed cookies for authenticated sessions.
+
+**File Size Limits:** Default maximum: 100MB per file. Configurable per
+tenant (up to 500MB for reserve studies, plat maps). Multipart upload
+for files over 10MB. Client-side file type validation before upload;
+server-side re-validation.
+
+Supported File Formats
+
+The system must support the following formats, organized by rendering
+capability:
+
+**Native Preview (in-browser):** PDF, JPG, JPEG, PNG, GIF, WEBP, SVG,
+TXT, CSV, MD, HTML
+
+**Converted Preview (rendered via LibreOffice/Gotenberg):** DOCX, XLSX,
+PPTX, DOC, XLS, PPT, RTF, ODT, ODS
+
+**Stored Only (download to view):** DWG, DXF, TIFF, MP4, MOV, AVI, ZIP,
+EML, MSG
+
+**OCR Candidates:** Scanned PDFs (no text layer), TIFF, JPG, PNG
+
+6.2 Document Processing Pipeline
+
+The document processing pipeline runs asynchronously to avoid blocking
+the user experience. It uses an event-driven architecture with SQS
+queues and Lambda functions (or ECS Fargate tasks for long-running
+processes).
+
+**Queue 1: Ingest:** Triggered on upload. Virus scan (ClamAV Lambda),
+format validation, metadata extraction. Average processing time: 2--5
+seconds.
+
+**Queue 2: Transform:** Document preview generation via Gotenberg
+(open-source, Docker-based document converter). Thumbnail generation
+(first page, 200x280px). PDF/A conversion for long-term archival.
+Average processing time: 5--30 seconds.
+
+**Queue 3: OCR:** Amazon Textract for scanned documents. 300 DPI
+rasterization for optimal accuracy. Page-level text extraction with
+confidence scoring. Output: searchable PDF overlay + extracted text
+JSON. Average processing time: 3--8 seconds per page.
+
+**Queue 4: Index:** Push extracted text, metadata, and classification to
+OpenSearch. Page-level indexing with document backreferences.
+Incremental indexing (only re-index when content or metadata changes).
+Average processing time: 1--3 seconds.
+
+**Dead Letter Queue:** Failed processing jobs retry 3 times with
+exponential backoff. After 3 failures, move to DLQ for manual review.
+Alert operations team. Common failures: corrupt files,
+password-protected PDFs, unsupported formats.
+
+6.3 Search Architecture
+
+Search Engine: Amazon OpenSearch Service
+
+OpenSearch (AWS-managed Elasticsearch fork) provides the full-text
+search backbone. It offers managed infrastructure, automatic scaling,
+fine-grained access control, and built-in integration with the AWS
+ecosystem.
+
+**Index Design:** Primary index: documents---one document per OpenSearch
+document with nested page objects. Fields: title (keyword + text, boost
+3x), category (keyword), document_type (keyword), tags (keyword array),
+body_text (text, boost 1x), page_text (nested, text), created_date
+(date), modified_date (date), retention_class (keyword), tenant_id
+(keyword, used for index-level filtering), author (keyword), status
+(keyword), ocr_confidence (float).
+
+**Search Features:** BM25 full-text search with field boosting. Fuzzy
+matching for typo tolerance. Phrase matching for exact quotes. Filters:
+document type, category, date range, author, status, retention class,
+tags. Highlighting: return matched text snippets with highlighted search
+terms. Pagination with cursor-based scrolling for large result sets.
+
+**Semantic Search (Phase 2):** Vector embeddings via Amazon Bedrock or
+OpenAI for conceptual search. Use case: searching for \'landscaping
+rules\' also returns documents about \'yard maintenance standards.\'
+Hybrid scoring: 70% BM25 + 30% vector similarity.
+
+**Saved Searches:** Users can save and name search queries. Board
+members can create shared saved searches visible to the board. Alert
+subscriptions: notify when new documents match a saved search.
+
+6.4 OCR Pipeline
+
+**Primary Engine:** Amazon Textract for production workloads. Tight S3 +
+Lambda integration. Mature async processing. Good table and key-value
+pair detection for financial documents. Cost: approximately \$1.50 per
+1,000 pages.
+
+**Fallback / Cost Optimization:** Tesseract 5.x (open-source) for batch
+processing of low-priority documents. PaddleOCR for any CJK-language
+documents (if multi-language communities require it). Run on ECS Fargate
+Spot instances for cost efficiency.
+
+**Pre-Processing:** Pre-crop margins before OCR (improves confidence
+from \~0.81 to \~0.86 per testing data). 300 DPI rasterization (sweet
+spot---600 DPI bloats storage with minimal accuracy gain). Deskew and
+denoise scanned images. Language detection to route to appropriate OCR
+engine.
+
+**Quality Metrics:** Store per-page OCR confidence scores. Flag pages
+below 0.75 confidence for human review. Dashboard showing OCR processing
+queue depth, average confidence, and failure rate.
+
+6.5 PDF Generation Engine
+
+**Technology:** Gotenberg (open-source, Docker-based) for HTML-to-PDF
+conversion. Puppeteer/Chromium for complex rendered PDFs (financial
+reports, board packets). WeasyPrint as lightweight alternative for
+simple template-based PDFs.
+
+**Use Cases:** Template-based document generation (violation notices,
+ARC letters, meeting minutes). Financial report packets (P&L, balance
+sheet, budget vs. actual, bundled with cover page and TOC). Annual
+meeting packets (compiled multi-document packages). Resale certificates
+and disclosure packets. Assessment invoices and statements.
+
+**Requirements:** PDF/A output for archival compliance. Digital
+signature embedding for e-signed documents. Watermarking (DRAFT,
+CONFIDENTIAL, COPY). Barcode/QR code embedding for document tracking.
+Consistent rendering across viewing platforms.
+
+6.6 Document Preview Rendering
+
+**Architecture:** CloudFront CDN serves preview renditions. PDF.js for
+in-browser PDF rendering (no server-side rendering needed). Image
+previews served as optimized WebP with progressive loading. Office
+documents (DOCX, XLSX, PPTX) converted to PDF on upload for preview;
+originals preserved for download.
+
+**Performance Targets:** Preview load time: under 2 seconds for
+documents up to 50 pages. Thumbnail load time: under 500ms. Progressive
+loading for large documents (render first page immediately, load
+remaining pages in background).
+
+6.7 E-Signature Integration
+
+**Recommended Primary:** DocuSeal (open-source, self-hosted). Zero
+per-signature cost. Full API with webhooks. Templates, embedded signing,
+audit trails. Self-hosted ensures data sovereignty and no vendor
+dependency.
+
+**Recommended Secondary:** Dropbox Sign (HelloSign) API for users who
+prefer a managed service. Clean developer documentation. Competitive
+pricing for SaaS integration. SOC 2 and GDPR compliant.
+
+**Integration Pattern:** API-first: generate signing request from
+template with merge fields populated. Embedded signing: signer completes
+within the platform (no redirect). Webhook callbacks on status changes
+(sent, viewed, signed, completed, declined). Completed documents
+automatically filed in the appropriate document category with
+certificate of completion attached. Audit trail: signer IP, timestamp,
+authentication method stored per signature.
+
+6.8 Multi-Tenant Document Isolation
+
+**Storage Layer:** S3 prefix isolation: /{tenant_id}/documents/. No
+cross-tenant key access possible via IAM policies. Separate KMS keys per
+tenant for encryption at rest.
+
+**Database Layer:** PostgreSQL Row-Level Security (RLS) on all document
+metadata tables. tenant_id column on every table. RLS policies enforce
+that queries only return rows matching the authenticated tenant.
+Connection-level tenant context set via SET app.current_tenant.
+
+**Search Layer:** OpenSearch index filtered by tenant_id on every query.
+Application layer enforces tenant context before any search request. No
+cross-tenant search possible.
+
+**Application Layer:** JWT tokens include tenant_id. Every API request
+validates tenant context. Document URLs include tenant-scoped presigned
+tokens. API middleware rejects any request where the document\'s
+tenant_id does not match the authenticated user\'s tenant.
+
+6.9 Backup and Disaster Recovery
+
+**S3:** Cross-region replication enabled (primary: us-west-2, replica:
+us-east-1). Versioning enabled---accidental deletions recoverable.
+99.999999999% (11 nines) durability.
+
+**Database:** RDS automated backups with 35-day retention. Point-in-time
+recovery. Cross-region read replica for disaster recovery. RPO: 5
+minutes. RTO: 1 hour.
+
+**OpenSearch:** Automated snapshots to S3 daily. Manual snapshot before
+any index migration. Index can be rebuilt from database + S3 sources if
+needed (recovery time: hours, not data loss).
+
+**Compliance:** Document disposal requires explicit authorization
+workflow---no automated deletion of documents within retention period.
+Disposal certificates generated and retained for 7 years. Cryptographic
+erasure for documents past retention: delete KMS key renders all
+encrypted objects irrecoverable.
+
+7\. Feature Specification
+
+7.1 Document Organization
+
+Folder Structure
+
+The default folder structure is auto-created per HOA tenant and reflects
+the 12-category taxonomy. Users can create custom sub-folders within any
+category. Folders support drag-and-drop reorganization. Documents can
+exist in one canonical folder location with shortcuts/links from other
+locations.
+
+**Default Top-Level Folders:** Governing Documents, Financial Records,
+Meeting Documents, Compliance & Enforcement, Architectural Review,
+Insurance & Risk, Vendor & Contracts, Legal, Communications,
+Administrative, Elections & Voting, Resale & Transfer
+
+**Auto-Generated Sub-Folders:** Financial Records auto-creates per-year
+sub-folders (e.g., Financial Records / 2026 / Statements). Meeting
+Documents auto-creates per-meeting folders (e.g., Meeting Documents /
+2026-03-15 Annual Meeting). Violations auto-creates per-case folders
+(e.g., Compliance / V-2026-0042 / \[all case documents\]).
+
+Metadata Schema
+
+Every document carries a standardized metadata schema with both
+system-managed and user-editable fields:
+
+**System-Managed:** document_id (UUID), tenant_id, file_name, file_size,
+file_type (MIME), upload_date, uploader_id, storage_path (S3 key),
+checksum (SHA-256), ocr_confidence (if applicable), version_number,
+version_status (Current/Draft/Superseded/Rejected), retention_class
+(Permanent/7-Year/1-Year/Duration-Based/Custom), retention_expiry_date
+(calculated), processing_status (Pending/Processing/Complete/Failed)
+
+**User-Editable:** title (display name), description, document_type
+(from taxonomy enum), category (from taxonomy enum), tags (free-text
+array), effective_date, expiration_date, related_entity_type (property,
+owner, vendor, violation, arc_case, meeting), related_entity_id,
+access_level_override (if different from category default), notes
+
+**Naming Convention:** System enforces:
+{YYYY-MM-DD}\_{Document_Type}\_{Description}.{ext}. Example:
+2026-03-15_Board_Minutes_Regular_Meeting.pdf. Auto-rename on upload with
+user-editable display name.
+
+7.2 Search Functionality
+
+**Search Bar:** Unified search bar accessible from any screen.
+Auto-suggest as user types (document titles, tags, recent searches).
+Search scope selector: All Documents, Current Folder, Specific Category.
+
+**Full-Text Search:** Search within document content (extracted text +
+OCR output). Highlight matched terms in document preview. Search result
+cards show: title, category, date, relevance score, snippet with
+highlighted match.
+
+**Filters:** Document type (multi-select from taxonomy), Category, Date
+range (created, modified, effective), Author/Uploader, Tags, Status
+(Current, Draft, Archived, Superseded), Retention class, Related entity
+(property address, owner name, violation number, ARC case number), File
+type (PDF, DOCX, image, etc.), OCR confidence threshold.
+
+**Advanced Search:** Boolean operators (AND, OR, NOT), Phrase matching
+(quoted strings), Wildcard search, Field-specific search (title:budget,
+tag:reserve), Date-relative search (modified:last_30_days).
+
+**Search Results:** Default sort: relevance score. Alternative sorts:
+date (newest/oldest), title (A-Z), file size. Result grouping by
+category or document type. Bulk actions from search results: download,
+share, move, tag, export list.
+
+7.3 Version Control
+
+**Versioned Document Types:** All governing documents, rules, policies,
+architectural guidelines, templates, financial reports, budgets, reserve
+studies, meeting minutes (draft to approved).
+
+**Version Numbering:** Semantic: major.minor. Major: formal amendments,
+new editions (requires approval workflow). Minor: corrections,
+formatting updates. System auto-increments minor; major requires
+explicit user action.
+
+**Version History UI:** Timeline view showing all versions with: version
+number, date, author, status, change description. Side-by-side diff for
+text-based documents. One-click revert to any prior version (creates new
+version, does not delete history).
+
+**Diff Engine:** Text-based diff for DOCX and TXT (using delta
+algorithm). PDF diff via visual overlay comparison. Highlighted
+additions (green), deletions (red), modifications (yellow). Export diff
+as annotated PDF.
+
+**Concurrent Edit Prevention:** Optimistic locking for web-form-based
+edits. Pessimistic locking (check-out/check-in) for file-based
+documents. Lock timeout: 4 hours default, configurable. Lock override by
+Board President or Super Admin with audit log entry.
+
+7.4 Audit Trail
+
+**Events Tracked:** Document created, Document viewed, Document
+downloaded, Document edited (new version), Document shared (with whom,
+method), Document deleted (soft delete), Document archived, Document
+restored, Permissions changed, Metadata modified, E-signature
+initiated/completed, Search performed (query logged), Export performed,
+Retention policy applied/modified.
+
+**Audit Record Fields:** event_id, timestamp, actor_id, actor_role,
+tenant_id, document_id, event_type, event_details (JSON), ip_address,
+user_agent.
+
+**Retention:** Audit logs retained for minimum 7 years. Immutable---no
+edit or delete capability. Exportable to CSV/PDF for legal discovery or
+compliance audits. Filterable by: date range, actor, document, event
+type.
+
+**Compliance Reporting:** Pre-built reports: Documents accessed by
+user/date range, Documents approaching retention expiry, Documents
+overdue for review/update, Records request response time metrics,
+E-signature completion rates.
+
+7.5 Retention Management
+
+**Auto-Classification:** Documents auto-assigned retention class based
+on document type from taxonomy. Override capability for Board President
+and Super Admin with audit log.
+
+**Retention Countdown:** Dashboard widget showing documents approaching
+retention expiry (30/60/90-day warnings). Automated alerts to designated
+retention officer.
+
+**Disposal Workflow:** Documents past retention period flagged for
+review. Disposal requires explicit approval from Board President or
+designated officer. System generates disposal certificate: list of
+documents, retention policy applied, disposal date, authorizing officer.
+Cryptographic erasure: delete S3 objects and purge from search index.
+Disposal certificates retained for 7 years.
+
+**Legal Hold:** Attorney or Board President can place legal hold on any
+document or category. Legal hold overrides retention expiry---documents
+cannot be disposed while hold is active. Track holds with: reason, date
+placed, placed by, associated matter.
+
+7.6 Compliance Features
+
+**Multi-State Compliance Engine:** Configurable per-tenant compliance
+rules. Parameters: response deadline for records requests, copy fee
+calculation formula, penalty structure, exempt record categories.
+Default: Washington State (RCW 64.38 + WUCIOA). Phase 2: top 10 HOA
+states (FL, CA, TX, AZ, NV, CO, IL, NC, VA, WA).
+
+**Compliance Dashboard:** Records request SLA tracking with deadline
+countdown. Retention expiry calendar. Insurance certificate expiration
+alerts. Contract renewal date tracking. Reserve study update reminders
+(annual update, 3-year visual inspection for WA). Secretary of State
+filing reminders. Board training compliance tracker.
+
+**Address Confidentiality Program:** Auto-redaction of ACP participant
+addresses from any document shared with non-board members. ACP flag on
+owner profile---system-enforced, cannot be bypassed. Applies to: owner
+roster downloads, meeting attendance lists, any document containing
+owner addresses.
+
+8\. Competitive Analysis: Document Management in HOA Platforms
+
+This section synthesizes findings from analysis of 22 HOA management
+platforms, focusing specifically on their document management
+capabilities and shortcomings.
+
+8.1 Market-Wide Findings
+
+No platform in the self-managed HOA tier provides true compliance-grade
+document management. The enterprise tier (Vantaca, CINC, AppFolio,
+Buildium) offers stronger features but at price points and complexity
+levels inappropriate for volunteer boards. The specific gaps that
+represent differentiation opportunities for this platform are:
+
+**Version Control:** Only HOA Start adds version control among Tier 3
+platforms. PayHOA has none. No platform offers
+governing-document-specific amendment tracking with side-by-side diff
+capability.
+
+**Retention Management:** No self-managed platform tracks document
+retention schedules, automates expiration alerts, or provides disposal
+workflows. This is universally absent.
+
+**Compliance Automation:** No platform automates state-specific records
+request deadlines, tracks penalty exposure, or provides compliance
+calendars for document-related statutory obligations.
+
+**OCR and Search:** HOA Start limits search to titles only. PayHOA
+offers basic folder-based storage with search. No self-managed platform
+provides full-text search across document content or OCR for scanned
+documents.
+
+**E-Signatures:** PayHOA lacks e-signatures entirely. Most Tier 3
+platforms lack this feature. Users must rely on external tools
+(DocuSign, etc.) with no integration.
+
+**Template Sophistication:** PayHOA\'s template builder is rated
+\'Basic\' with users reporting formatting difficulties. No platform
+offers compliance-aware templates with statutory language
+auto-insertion.
+
+**AI-Powered Classification:** Only CINC\'s Cephai+ (enterprise) offers
+AI-generated board packets. No self-managed platform uses AI for
+document classification, metadata extraction, or content summarization.
+
+8.2 Platform-Specific Findings
+
+**PayHOA (incumbent):** Strengths: unlimited storage, drag-and-drop,
+folder structure, encryption, per-document/folder/user permissions, CC&R
+hosting, financial report packet generation, HomeWiseDocs resale
+integration. Weaknesses: no versioning, no e-signatures, basic template
+builder, no full-text search, no OCR, no retention tracking, no
+compliance automation, no meeting-specific document workflows.
+
+**HOA Start:** Adds version control and nested security measures. Limits
+search to titles only. \$39/month flat pricing is aggressive.
+
+**HOALife:** Property-level document files integrated with violations
+and requests. Strong linking between documents and operational records.
+GPS-enabled inspection photos.
+
+**Buildium:** Compliance management with audit trails. Enterprise-grade
+but \$174+/month and designed for professional managers.
+
+**CINC Systems / Cephai+:** AI-generated board packets with executive
+summaries. Auto-processes 31,000+ invoices. Enterprise-only
+(\$250+/month).
+
+**Vantaca / HOAi:** Most advanced AI: autonomous invoice processing,
+automated ARC form review with compliance checking. Enterprise-only with
+custom pricing.
+
+8.3 Differentiation Strategy
+
+This platform should deliver enterprise-grade document management at
+self-managed pricing by combining: (1) compliance-aware retention and
+records request management that no competitor offers at any tier, (2)
+full-text search with OCR that only enterprise platforms currently
+provide, (3) version control with governing-document-specific amendment
+tracking, (4) integrated e-signatures via open-source DocuSeal (zero
+per-signature cost advantage over DocuSign-dependent competitors), (5)
+AI-assisted document classification and template population, and (6)
+template system with statutory-language auto-insertion that eliminates
+the legal risk of non-compliant notices.
+
+9\. Implementation Roadmap
+
+The document management system should be built in three phases, with
+each phase delivering standalone value while laying groundwork for
+subsequent phases.
+
+9.1 Phase 1: Foundation (Weeks 1--12)
+
+Core document storage, organization, and access control. This phase
+replaces PayHOA\'s existing document management with parity-plus
+features.
+
+**S3 storage backend:** Upload, download, organize, folder structure,
+tenant isolation, encryption
+
+**Document metadata schema:** Full taxonomy implementation, tagging,
+categorization
+
+**RBAC integration:** Per-document and per-folder permissions mapped to
+9-role model
+
+**Basic search:** Title, filename, tag, and metadata-based search. No
+full-text yet.
+
+**Document preview:** In-browser PDF and image rendering. Office doc
+conversion to PDF for preview.
+
+**Version control:** Check-in/check-out, version history, status labels
+
+**Audit trail:** All document actions logged, immutable, exportable
+
+**Template system (basic):** 10 core templates with merge fields:
+meeting notices, violation notices, ARC letters, assessment invoices
+
+9.2 Phase 2: Intelligence (Weeks 13--24)
+
+Search depth, OCR, compliance automation, and e-signatures. This phase
+establishes the competitive moat.
+
+**Full-text search:** OpenSearch integration, content indexing, field
+boosting, highlighting
+
+**OCR pipeline:** Amazon Textract integration, scanned document
+processing, searchable PDF generation
+
+**Retention management:** Auto-classification, countdown timers,
+expiration alerts, disposal workflows
+
+**Records request workflow:** Intake, acknowledgment, deadline tracking,
+exemption review, fee calculation, delivery tracking
+
+**E-signature integration:** DocuSeal self-hosted. Embedded signing.
+Template integration.
+
+**Compliance dashboard:** Multi-state records request deadlines, penalty
+exposure tracking, insurance/contract expiration alerts
+
+**Template system (full):** All 25+ templates, conditional logic,
+multi-channel delivery integration, branding customization
+
+9.3 Phase 3: AI and Advanced Features (Weeks 25--36)
+
+AI-powered capabilities and advanced document workflows. This phase
+delivers features currently available only in \$250+/month enterprise
+platforms.
+
+**AI document classification:** Auto-categorize uploaded documents by
+type and suggest metadata
+
+**AI content extraction:** Extract key data points from financial
+statements, invoices, contracts
+
+**Semantic search:** Vector embeddings for conceptual search beyond
+keyword matching
+
+**Board packet auto-assembly:** AI-compiled meeting packets with
+executive summaries
+
+**Document diff with AI summary:** Natural-language description of
+changes between governing document versions
+
+**Smart redaction:** AI-assisted PII detection and redaction for records
+request fulfillment
+
+**Multi-language templates:** Spanish, Chinese, Vietnamese, Korean
+translation variants
+
+**Advanced analytics:** Document usage patterns, search analytics,
+compliance scoring
+
+Appendix A: Technology Stack Summary
+
+  --------------------- ------------------- ---------------------------------------
+  **Component**         **Technology**      **Key Capabilities**
+
+  Document Storage      Amazon S3           11 nines durability, KMS encryption,
+                                            versioning, lifecycle policies, Object
+                                            Lock
+
+  Database              PostgreSQL (RDS)    Row-Level Security for tenant
+                                            isolation, JSONB for flexible metadata
+
+  Search Engine         Amazon OpenSearch   Full-text search, field boosting, fuzzy
+                                            matching, aggregations
+
+  OCR                   Amazon Textract     Async processing, table detection,
+                        (primary),          confidence scoring
+                        Tesseract 5.x       
+                        (fallback)          
+
+  PDF Generation        Gotenberg +         HTML-to-PDF, PDF/A archival,
+                        Puppeteer           watermarking, batch generation
+
+  Document Preview      PDF.js + CloudFront In-browser rendering, progressive
+                        CDN                 loading, signed URLs
+
+  E-Signatures          DocuSeal            Zero per-signature cost (DocuSeal),
+                        (self-hosted        embedded signing, webhooks
+                        primary), Dropbox   
+                        Sign (managed       
+                        option)             
+
+  File Processing       AWS Lambda + SQS    Event-driven, auto-scaling, dead-letter
+                                            queues for failures
+
+  Virus Scanning        ClamAV (Lambda      Open-source, updated signatures, blocks
+                        layer)              malicious uploads
+
+  Email/Notifications   SendGrid + Twilio + Email, SMS, push notifications for
+                        Amazon SNS          document events
+
+  Physical Mail         Lob                 USPS first-class, delivery tracking,
+                                            return envelopes
+
+  CDN                   Amazon CloudFront   Low-latency document delivery, signed
+                                            cookies, geographic caching
+
+  Vector Search (Phase  Amazon Bedrock /    Semantic search, document similarity,
+  3)                    pgvector            AI embeddings
+  --------------------- ------------------- ---------------------------------------
+
+Appendix B: Document Count Summary
+
+Total document types identified in taxonomy: 78 across 12 categories.
+Governing Documents: 8 types. Financial Documents: 12 types. Meeting
+Documents: 10 types. Compliance & Enforcement: 10 types. Architectural
+Review: 7 types. Insurance & Risk: 8 types. Vendor & Contract: 8 types.
+Legal: 8 types. Communications: 7 types. Administrative: 8 types.
+Election & Voting: 8 types. Resale & Transfer: 5 types.
+
+Templates specified: 25 templates across 4 categories (Meeting,
+Violation/Enforcement, ARC, Financial/Administrative) with full merge
+field specifications and compliance requirements.
+
+Access control matrix covers all 78 document types across 9 RBAC roles
+with 6 permission levels (Full, Manage, Edit, View, Own, Scoped, None).
