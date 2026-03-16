@@ -19,4 +19,4 @@ jobs:
       - name: Turborepo Cache
         uses: rharkor/caching-for-turbo@v2.2.1
       - run: pnpm install --no-frozen-lockfile
-      - run: turbo run lint check-types test --affected
+      - run: pnpm turbo run lint check-types test --affected
