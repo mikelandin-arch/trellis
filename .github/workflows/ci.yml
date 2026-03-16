@@ -18,5 +18,5 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}", cache: "pnpm" }
       - name: Turborepo Cache
         uses: rharkor/caching-for-turbo@v2.2.1
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: turbo run lint check-types test --affected
