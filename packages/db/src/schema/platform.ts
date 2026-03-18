@@ -8,6 +8,8 @@ export const tenants = pgTable('tenants', {
   status: text('status').notNull().default('active'),
   stripeCustomerId: text('stripe_customer_id').unique(),
   stripeSubscriptionId: text('stripe_subscription_id'),
+  stripeConnectAccountId: text('stripe_connect_account_id').unique(),
+  stripeConnectOnboarded: boolean('stripe_connect_onboarded').notNull().default(false),
   planTier: text('plan_tier').notNull().default('starter'),
   billingCycle: text('billing_cycle').notNull().default('monthly'),
   featureFlags: jsonb('feature_flags').notNull().default({}),

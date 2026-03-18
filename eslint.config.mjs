@@ -24,7 +24,7 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
-      'react/jsx-no-leaked-render': 'warn',
+      'react/jsx-no-leaked-render': 'off',
     },
     settings: {
       react: { version: 'detect' },

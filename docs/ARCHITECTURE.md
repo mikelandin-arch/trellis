@@ -2,7 +2,7 @@
 
 Reference for engineers adding features, routers, or infrastructure to the Trellis HOA platform.
 
-**Last updated:** Week 2, Phase 1 (API foundation complete, mobile shell in progress).
+**Last updated:** Phase 3 (Financial management system complete).
 
 ---
 
@@ -127,14 +127,24 @@ Permission strings correspond to Clerk organization permissions (e.g. `org:viola
 
 | File | Responsibility |
 |---|---|
-| `server.ts` | Fastify bootstrap. Registers `clerkWebhookPlugin`, `clerkPlugin`, `fastifyTRPCPlugin` at `/trpc`, REST webhook stub at `/webhooks/stripe`. |
+| `server.ts` | Fastify bootstrap. Registers `stripeWebhookPlugin`, `clerkWebhookPlugin`, `clerkPlugin`, `fastifyTRPCPlugin` at `/trpc`. |
 | `webhooks/clerk.ts` | Clerk webhook handler. Svix signature verification, event routing, idempotent writes to `tenants`, `users`, and `tenant_memberships` via `adminDb`. |
+| `webhooks/stripe.ts` | Stripe webhook handler. Signature verification, handles `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`. |
 | `trpc/context.ts` | Creates tRPC context per request. Extracts Clerk auth claims. Owns the `resolveTenantId` function and its in-memory cache (Map with 5-min TTL). |
 | `trpc/router.ts` | `initTRPC` with error formatting. Exports `router`, `publicProcedure`, `middleware`. |
 | `trpc/procedures.ts` | The 4-layer middleware chain. Exports `authedProcedure`, `orgProcedure`, `tenantProcedure`, `superAdminProcedure`, `requirePermission`. |
 | `routers/index.ts` | Root `appRouter` merging all domain routers. Exports `AppRouter` type for client-side inference. |
 | `routers/health.ts` | `publicProcedure` — returns status, service name, timestamp. |
 | `routers/property.ts` | `tenantProcedure` — `list` (cursor-paginated) and `getById`. First tenant-scoped router; use as the template for new routers. |
+| `routers/violation.ts` | `tenantProcedure` — Full violation CRUD: `create`, `list`, `getById`, `transition` (state machine), `addEvidence` (S3 presigned URL), `dismiss`. |
+| `routers/violation-category.ts` | `tenantProcedure` — Category tree management: `list`, `create`, `update`. Admin-only mutations via `requirePermission`. |
+| `routers/stripe-connect.ts` | `tenantProcedure` — Stripe Connect management: `createConnectedAccount`, `getOnboardingLink`, `getAccountStatus`, `getDashboardLink`. Board officer only. |
+| `routers/assessment.ts` | `tenantProcedure` — Assessment billing: `listSchedules`, `createSchedule`, `generateCharges`, `getRateHistory`. |
+| `routers/charge.ts` | `tenantProcedure` — Charge ledger: `listByMember`, `listByProperty`, `listOverdue` (with aging buckets), `waive`. |
+| `routers/payment.ts` | `tenantProcedure` — Payment processing: `createPaymentIntent` (Stripe destination charges), `listByMember`, `applyPayment`, `setupAutopay`, `cancelAutopay`. |
+| `lib/stripe.ts` | Stripe SDK initialization, fee calculation helpers (application fee, platform ACH cost). |
+| `lib/compliance.ts` | WA state compliance engine: cure deadlines, transition validation, notice methods, fine cap checking. Queries `compliance_profiles` and `violation_transition_rules`. |
+| `lib/collections.ts` | Collections workflow: `assessLateFees` (WA-compliant), `getDelinquencyStatus`, `getPaymentApplicationOrder` (state-configurable). |
 
 ### `packages/db/` — Drizzle ORM + connection pools
 
@@ -150,8 +160,11 @@ Permission strings correspond to Clerk organization permissions (e.g. `org:viola
 | File | Responsibility |
 |---|---|
 | `src/schemas/common.ts` | `paginationSchema`, `idParamSchema`, `tenantIdSchema` — Zod schemas reused across routers. |
+| `src/schemas/violation.ts` | All violation Zod schemas: `createViolationSchema`, `violationListSchema`, `transitionViolationSchema`, `addEvidenceSchema`, `dismissViolationSchema`, `violationCategoryCreateSchema`, `violationCategoryUpdateSchema`. |
+| `src/schemas/assessment.ts` | Assessment and charge schemas: `createAssessmentScheduleSchema`, `generateChargesSchema`, `chargeListFiltersSchema`, `waiveChargeSchema`, `rateHistorySchema`. |
+| `src/schemas/payment.ts` | Payment schemas: `createPaymentIntentSchema`, `setupAutopaySchema`, `paymentListFiltersSchema`. |
 | `src/constants/roles.ts` | `CLERK_ROLES` object and `ClerkRole` type. |
-| `src/constants/violation-states.ts` | `VIOLATION_STATUS`, `VALID_TRANSITIONS` — state machine constants. |
+| `src/constants/violation-states.ts` | `VIOLATION_STATUS`, `VALID_TRANSITIONS`, `TERMINAL_STATES`, UI helpers (`VIOLATION_STATUS_LABELS`, `STATUS_BADGE_VARIANT`, `SEVERITY_BADGE_VARIANT`). |
 
 ### `packages/infra/` — AWS CDK
 
@@ -370,12 +383,387 @@ The `scripts/seed-talasera.ts` script populates the dev database with a realisti
 | `properties` | 55 | Lots 1–55, 12001–12055 Talasera Ln |
 | `compliance_profiles` | 1 | Washington State defaults (30-day cure, 14-day hearing notice) |
 
-### Running the seed
+`scripts/seed-assessments.ts` extends the dataset with financial data:
+
+| Table | Records | Details |
+|---|---|---|
+| `members` | 55 | Owner 1–55 (one per property) |
+| `property_ownerships` | 55 | Primary ownership linking members to properties |
+| `assessment_schedules` | 1 | $100/month operating fund assessment |
+| `assessment_rate_history` | 1 | Initial rate record |
+| `charges` | 165 | 3 months (Jan–Mar 2026) × 55 properties |
+| `payments` | 132 | ~80% on-time rate (44 properties × 3 months) |
+| `payment_applications` | 132 | Payment-to-charge linkage |
+
+### Running the seeds
 
 The SSM port-forward tunnel to RDS must be active (see "Deployed vs. Local" above), then:
 
 ```bash
 npx tsx scripts/seed-talasera.ts
+npx tsx scripts/seed-assessments.ts
 ```
 
-The script is idempotent — every INSERT uses `ON CONFLICT DO NOTHING` or a `WHERE NOT EXISTS` guard, so it is safe to re-run.
+Both scripts are idempotent — every INSERT uses `ON CONFLICT DO NOTHING` or a `WHERE NOT EXISTS` guard, so they are safe to re-run.
+
+---
+
+## Mobile App
+
+The Expo mobile app lives in `apps/mobile/` and uses file-based routing via expo-router v5 (SDK 53).
+
+### Provider Hierarchy
+
+The root layout (`src/app/_layout.tsx`) wraps the entire app in three layers, outermost to innermost:
+
+```
+ClerkProvider (src/providers/auth-provider.tsx)
+  │  tokenCache from @clerk/clerk-expo/token-cache (SecureStore-backed)
+  │  publishableKey from EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+  ▼
+TRPCQueryProvider (src/lib/trpc.ts)
+  │  QueryClientProvider + TRPCProvider
+  │  httpBatchLink → EXPO_PUBLIC_API_URL/trpc
+  │  Injects Authorization: Bearer <Clerk JWT> via useAuth().getToken()
+  ▼
+Auth Gate (useProtectedRoute hook in _layout.tsx)
+  │  Redirects based on auth + org state:
+  │    not signed in     → /(auth)/sign-in
+  │    signed in, no org → /(auth)/org-select
+  │    signed in + org   → /(tabs)
+  ▼
+Screen (Slot)
+```
+
+### Auth Flow
+
+1. **Sign-in** (`(auth)/sign-in.tsx`): User enters email → magic link sent via `useSignIn()` with `email_code` strategy → redirects to verify screen. Google OAuth available via `useSSO()` with `strategy: 'oauth_google'`.
+
+2. **Verification** (`(auth)/verify.tsx`): Handles deep link callbacks (`trellis://` scheme) and manual 6-digit OTP entry. On success, `setActive()` creates the session.
+
+3. **Org selection** (`(auth)/org-select.tsx`): Lists the user's Clerk organizations via `useOrganizationList()`. Tapping an org calls `setActive({ organization })`, which updates the JWT claims and triggers the auth gate to redirect to `(tabs)`.
+
+### tRPC Client Configuration
+
+The tRPC client is configured in two layers:
+
+- **`packages/api-client/src/index.ts`**: Creates the typed tRPC context via `createTRPCContext<AppRouter>()` from `@trpc/tanstack-react-query`. Exports `TRPCProvider`, `useTRPC`, and the `AppRouter` type (imported from `@repo/api`).
+
+- **`apps/mobile/src/lib/trpc.ts`**: Creates the actual `TRPCClient` with `httpBatchLink` pointed at the API server. The Clerk session token is injected into the `Authorization` header via a ref-captured `getToken()` callback from `useAuth()`. The `QueryClient` is configured with 30-second stale time and retry logic that skips 401/403 errors.
+
+Components use the tRPC v11 pattern: `useTRPC()` to get the typed proxy, then `useQuery(trpc.property.list.queryOptions({ limit: 50 }))` from `@tanstack/react-query`.
+
+### File Structure
+
+```
+src/
+├── app/
+│   ├── _layout.tsx              # Root: providers + auth gate
+│   ├── (auth)/
+│   │   ├── _layout.tsx          # Stack navigator
+│   │   ├── sign-in.tsx          # Email + magic link + Google OAuth
+│   │   ├── verify.tsx           # OTP code entry + deep link handler
+│   │   └── org-select.tsx       # Organization picker
+│   └── (tabs)/
+│       ├── _layout.tsx          # Bottom tabs (role-gated Admin)
+│       ├── index.tsx            # Home dashboard
+│       ├── payments/            # Financial management (Phase 3)
+│       │   ├── _layout.tsx     # Stack navigator
+│       │   ├── index.tsx       # Owner payment dashboard
+│       │   ├── pay.tsx         # Payment flow (method select, confirm)
+│       │   └── history.tsx     # Full payment history
+│       ├── community/
+│       │   └── index.tsx        # Property directory
+│       ├── requests.tsx         # Placeholder
+│       └── admin/              # Board-only (role-gated)
+│           ├── _layout.tsx     # Stack navigator
+│           ├── index.tsx       # Admin dashboard
+│           ├── finance/        # Financial dashboard (Phase 3)
+│           │   └── index.tsx   # AR aging, collections, generate assessments
+│           └── violations/     # Violation management (Phase 2)
+│               ├── index.tsx   # Violation list with filters
+│               ├── [id].tsx    # Violation detail + timeline
+│               ├── report.tsx  # 5-step report wizard
+│               └── transition.tsx # State transition modal
+├── lib/
+│   └── trpc.ts                  # tRPC client + QueryClient + provider
+└── providers/
+    └── auth-provider.tsx        # ClerkProvider wrapper
+```
+
+### Offline Behavior
+
+The app treats offline as a neutral state, not an error. React Query's cache serves stale data when the network is unavailable. No error modals are shown for connectivity issues — the Clerk SDK handles token refresh when connectivity returns, and the sign-in screen shows a friendly message via `isClerkRuntimeError()` network error detection.
+
+### Tab Navigation
+
+Five bottom tabs: Home, Payments, Community, Requests, Admin. The Admin tab is role-gated — it is hidden from users whose Clerk organization role is not in the set `{super_admin, board_officer, board_member, property_manager}`. This is implemented by setting `href: null` on the Admin `Tabs.Screen` for non-admin users.
+
+---
+
+## Violation Management (Phase 2)
+
+The violation management system is Trellis's core differentiator. Board members can document violations in under 60 seconds from a smartphone with full state-machine enforcement and WA state compliance.
+
+### State Machine
+
+The violation lifecycle is a strict state machine with 13 states and controlled transitions. The state machine prevents skipping steps — for example, you cannot go from `courtesy_notice_sent` to `lien_filed` without passing through `formal_notice_sent` and `hearing_scheduled`.
+
+```
+REPORTED
+  ├→ VERIFIED → COURTESY_NOTICE_SENT
+  │               ├→ FORMAL_NOTICE_SENT
+  │               │    ├→ ESCALATED → HEARING_SCHEDULED
+  │               │    ├→ HEARING_SCHEDULED
+  │               │    └→ RESOLVED_CURED
+  │               └→ RESOLVED_CURED
+  └→ DISMISSED
+
+HEARING_SCHEDULED
+  ├→ FINE_ASSESSED
+  │    ├→ PAYMENT_PLAN
+  │    │    ├→ RESOLVED_PAID
+  │    │    └→ LIEN_FILED
+  │    ├→ LIEN_FILED
+  │    │    ├→ LEGAL_REFERRAL (terminal)
+  │    │    └→ RESOLVED_PAID (terminal)
+  │    └→ RESOLVED_PAID (terminal)
+  ├→ DISMISSED (terminal)
+  └→ RESOLVED_CURED (terminal)
+```
+
+Terminal states: `RESOLVED_CURED`, `RESOLVED_PAID`, `DISMISSED`, `LEGAL_REFERRAL`.
+
+State definitions live in `packages/shared/src/constants/violation-states.ts`. The `VALID_TRANSITIONS` map is the source of truth for allowed transitions.
+
+### Compliance Engine
+
+The compliance engine (`apps/api/src/lib/compliance.ts`) enforces state-specific rules:
+
+| Function | Purpose |
+|---|---|
+| `getCureDeadline(db, violationDate, stateCode)` | Calculates cure deadline from `compliance_profiles.cure_period_days`. Defaults to 30 days. |
+| `validateTransition(db, from, to, stateCode)` | Checks `VALID_TRANSITIONS` map, then queries `violation_transition_rules` for state-specific requirements (hearing, notice days, certified mail). |
+| `getRequiredNoticeMethod(db, stateCode, noticeType)` | Returns required delivery channels per state law. |
+| `checkFineCap(db, amount, stateCode)` | Validates fine against the state's `fine_cap_per_violation`. WA has no statutory cap but requires a previously established fine schedule. |
+
+All compliance functions accept the transactional `ctx.db` from `tenantProcedure`, ensuring they run inside the RLS-scoped transaction.
+
+### API Surface
+
+Two tRPC routers handle violation operations:
+
+**`violation` router** (`apps/api/src/routers/violation.ts`):
+
+| Procedure | Input | Description |
+|---|---|---|
+| `create` | `createViolationSchema` | Report new violation. Validates property, resolves community, checks repeat offenders (12-month lookback). |
+| `list` | `violationListSchema` | Cursor-paginated, filterable by status, property, category, severity, date range. Joins property address and category name. |
+| `getById` | `idParamSchema` | Full detail: violation + transitions history + evidence list + valid next transitions. |
+| `transition` | `transitionViolationSchema` | State machine transition with compliance validation. Sets cure deadlines, validates hearing dates and fine caps. |
+| `addEvidence` | `addEvidenceSchema` | Returns a pre-signed S3 PUT URL for direct upload from mobile. |
+| `dismiss` | `dismissViolationSchema` | Shortcut for transition to `dismissed` with required reason. |
+
+**`violationCategory` router** (`apps/api/src/routers/violation-category.ts`):
+
+| Procedure | Input | Description |
+|---|---|---|
+| `list` | — | Full category tree for current tenant. |
+| `create` | `violationCategoryCreateSchema` | Admin-only category creation. |
+| `update` | `violationCategoryUpdateSchema` | Admin-only category updates. |
+
+### Evidence Upload Flow
+
+Evidence (photos, videos, documents) is uploaded directly to S3 via pre-signed URLs, never through the API server:
+
+```
+Mobile App                         API Server                    S3
+    │                                  │                          │
+    │  addEvidence(violationId, type)  │                          │
+    │─────────────────────────────────>│                          │
+    │                                  │  PutObjectCommand        │
+    │                                  │  getSignedUrl(300s)      │
+    │  { evidenceId, uploadUrl }       │                          │
+    │<─────────────────────────────────│                          │
+    │                                  │                          │
+    │  PUT uploadUrl (binary)          │                          │
+    │────────────────────────────────────────────────────────────>│
+    │                                  │                          │
+    │  200 OK                          │                          │
+    │<────────────────────────────────────────────────────────────│
+```
+
+S3 keys follow the pattern: `violations/{tenantId}/{violationId}/{evidenceId}`.
+
+### Mobile Screens
+
+The admin tab now contains a Stack navigator with nested violation screens:
+
+```
+(tabs)/admin/
+  _layout.tsx               # Stack navigator
+  index.tsx                 # Admin dashboard (violation summary + quick actions)
+  violations/
+    index.tsx               # FlashList with status/severity/category filter chips
+    [id].tsx                # Detail: status timeline, evidence gallery, action buttons
+    report.tsx              # 5-step wizard (photo → property → category → details → submit)
+    transition.tsx          # Modal: select next state, reason, hearing date / fine amount
+```
+
+The report wizard targets a 45-second / 4-tap reporting flow:
+1. **Photo**: Camera or library picker with auto GPS capture via `expo-location`
+2. **Property**: Searchable list filtered by address or lot number
+3. **Category**: Optional — grouped by parent category, auto-fills severity
+4. **Details**: Pre-filled title from category, optional description, severity picker
+5. **Review & Submit**: Creates violation + uploads evidence in one flow
+
+### Audit Trail
+
+Every state transition is recorded in the `violation_transitions` table with:
+- `from_state` / `to_state`
+- `triggered_by` (internal user UUID)
+- `reason` (required text)
+- `metadata` (JSONB — hearing date, fine amount, etc.)
+- `created_at` (timestamp)
+
+This provides a complete, immutable audit trail per WA's 7-year enforcement record retention requirement (RCW 64.38.045).
+
+### Seed Data
+
+`scripts/seed-violation-categories.ts` populates 8 parent categories with 26 subcategories for the Talasera HOA:
+
+| Category | Subcategories |
+|---|---|
+| Landscaping | Overgrown vegetation, Dead plants, Unapproved modifications, Weed control |
+| Parking | Street parking, Commercial vehicles, Inoperable vehicles, Garage conversion |
+| Exterior Maintenance | Paint/siding, Roof condition, Fencing, Windows/doors |
+| Holiday Decorations | Timing violations, Size/placement |
+| Noise | Excessive noise, Construction hours |
+| Trash/Debris | Visible trash, Bin storage |
+| Unauthorized Structures | Sheds, Fences, Additions |
+| Pet Violations | Leash, Waste, Aggressive behavior, Unapproved animals |
+
+---
+
+## Financial Management (Phase 3)
+
+The financial management system enables HOAs to bill assessments, collect payments via Stripe, maintain owner ledgers, and enforce collections — all with fund-level accounting and state-configurable compliance.
+
+### Stripe Connect Integration
+
+Trellis uses Stripe Connect with **destination charges**. Each HOA is a Stripe Express Connected Account. The platform collects payments from homeowners and transfers funds to the HOA's connected account, retaining an application fee.
+
+```
+Homeowner                  Stripe                    Platform               HOA Account
+    │                        │                          │                      │
+    │  PaymentIntent         │                          │                      │
+    │───────────────────────>│                          │                      │
+    │                        │  Deducts Stripe fees     │                      │
+    │                        │  (2.9% + $0.30 card,     │                      │
+    │                        │   0.8% ACH capped $5)    │                      │
+    │                        │                          │                      │
+    │                        │  application_fee_amount  │                      │
+    │                        │─────────────────────────>│                      │
+    │                        │                          │                      │
+    │                        │  Remainder               │                      │
+    │                        │─────────────────────────────────────────────────>│
+    │                        │                          │                      │
+    │                        │  payment_intent.succeeded │                      │
+    │                        │─────────────────────────>│                      │
+    │                        │                     (webhook updates ledger)     │
+```
+
+Key decisions:
+
+- **Custom recurring billing with PaymentIntents** — Stripe Billing/Subscriptions not used (avoids 0.5% surcharge per invoice).
+- **ACH is fee-free for homeowners** per WA SB 5129 (at least one payment method without convenience fees). The platform absorbs the 0.8% ACH cost, capped at $5 per transaction.
+- **Card payments carry a disclosed convenience fee** (2.9% + $0.30) which becomes the `application_fee_amount`.
+- **Financial Connections** for ACH bank verification (Plaid-powered instant bank linking).
+
+### Connected Account Lifecycle
+
+1. Board officer calls `stripeConnect.createConnectedAccount` — creates an Express account, stores `stripe_connect_account_id` on the tenant.
+2. Officer uses `stripeConnect.getOnboardingLink` to get a Stripe-hosted KYC/bank setup URL.
+3. `account.updated` webhook fires when onboarding completes — sets `stripe_connect_onboarded = true` on the tenant.
+4. Treasurer can access the Stripe Express Dashboard via `stripeConnect.getDashboardLink`.
+
+### Payment Flow
+
+1. Owner opens the payments tab, sees outstanding charges via `charge.listByMember`.
+2. Owner taps "Pay Now", selects ACH (no fee) or Card (fee disclosed).
+3. `payment.createPaymentIntent` creates a Stripe PaymentIntent with `transfer_data.destination` and inserts a `payments` row with status `'processing'`.
+4. Mobile app confirms the payment via Stripe's client SDK.
+5. `payment_intent.succeeded` webhook fires → updates payment status to `'succeeded'`.
+6. `payment.applyPayment` distributes the payment to outstanding charges per the state-mandated payment application order.
+
+### Assessment Billing Engine
+
+Assessments follow a **schedule-based model**. Each `assessment_schedule` defines a recurring charge template (amount, frequency, fund allocation). The `assessment.generateCharges` procedure creates individual `charges` records for each property in a billing period.
+
+Idempotency is enforced by checking for existing charges with the same `(schedule_id, property_id, period_start)` tuple before inserting.
+
+### Fund Accounting
+
+Every charge and payment is tagged with a `fund_tag` (`operating`, `reserve`, `special`, `custom`). Assessment schedules define a `fund_allocation` JSON that splits the assessment across funds (e.g., `{"operating": 0.8, "reserve": 0.2}`).
+
+This enables fund-based financial reporting without a full double-entry general ledger. The `charges` table serves as the receivables ledger, and the `payment_applications` junction table tracks how each payment dollar was applied.
+
+### Collections Engine
+
+The collections workflow (`apps/api/src/lib/collections.ts`) handles:
+
+- **Late fee assessment**: Finds overdue charges past the grace period (default 15 days). WA-compliant: during the 15-day protected period, late fees are capped at $50 or 5% of the unpaid assessment, whichever is less. Idempotent per charge per period.
+
+- **Delinquency classification**: Current, 30-day, 60-day, 90-day, or lien-eligible based on the oldest unpaid charge.
+
+- **Payment application order**: State-configurable via `compliance_profiles.payment_application_order`. Queries profiles with priority cascade (community > state > platform). Default order: interest → late fees → fines → assessments (oldest first) → special assessments.
+
+### State Compliance
+
+Payment application order varies by state:
+
+| State | Order | Source |
+|---|---|---|
+| Florida | Interest → Late fees → Costs → Principal | Fla. Stat. §720.3085(3)(b) |
+| Colorado | Assessments FIRST → Then fines/fees | C.R.S. §38-33.3-316.3 |
+| Texas | Delinquent → Current → Attorney fees → Fines | Tex. Prop. Code §209.0063 |
+| Washington | Per CC&Rs (no statutory mandate) | RCW 64.90 silent |
+
+The `compliance_profiles` table stores these rules with a priority cascade, allowing community-level overrides of state defaults.
+
+### API Surface
+
+| Router | Procedure | Permission | Description |
+|---|---|---|---|
+| `stripeConnect` | `createConnectedAccount` | `org:finance:manage` | Create Stripe Express account for HOA |
+| `stripeConnect` | `getOnboardingLink` | `org:finance:manage` | KYC/bank setup URL |
+| `stripeConnect` | `getAccountStatus` | — | Charges/payouts/details status |
+| `stripeConnect` | `getDashboardLink` | `org:finance:manage` | Express Dashboard login |
+| `assessment` | `listSchedules` | — | Active schedules for community |
+| `assessment` | `createSchedule` | `org:finance:manage` | New recurring or one-time assessment |
+| `assessment` | `generateCharges` | `org:finance:manage` | Bulk charge generation for billing period |
+| `assessment` | `getRateHistory` | — | Audit trail of rate changes |
+| `charge` | `listByMember` | — | Owner ledger view |
+| `charge` | `listByProperty` | — | Property charge history |
+| `charge` | `listOverdue` | `org:finance:manage` | Board AR aging view (30/60/90+ buckets) |
+| `charge` | `waive` | `org:finance:manage` | Waive charge with reason (audit logged) |
+| `payment` | `createPaymentIntent` | — | Stripe PaymentIntent with destination charge |
+| `payment` | `listByMember` | — | Payment history |
+| `payment` | `applyPayment` | `org:finance:manage` | Apply payment to charges per compliance order |
+| `payment` | `setupAutopay` | — | Enroll in autopay |
+| `payment` | `cancelAutopay` | — | Cancel autopay enrollment |
+
+### Mobile Screens
+
+The payments tab is now a Stack navigator with three screens:
+
+- **Dashboard** (`payments/index.tsx`): Current balance, next due date, "Pay Now" button, recent payments, autopay status.
+- **Pay** (`payments/pay.tsx`): Itemized charges, payment method selection (ACH "No fee" / Card with disclosed fee), confirmation.
+- **History** (`payments/history.tsx`): Full payment history with status badges.
+
+The admin section gains a **Finance** screen (`admin/finance/index.tsx`):
+
+- Total outstanding and delinquency rate
+- AR aging breakdown (current/30/60/90+ day buckets)
+- Recent overdue charges
+- "Generate Assessments" button for billing cycle

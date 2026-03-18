@@ -1,1 +1,1 @@
-{ "extends": "@repo/tsconfig/react-native.json", "include": ["src", "app.config.ts"], "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }
+{ "extends": "@repo/tsconfig/react-native.json", "include": ["src", "app.config.ts"], "compilerOptions": { "declaration": false, "declarationMap": false, "paths": { "@/*": ["./src/*"] } } }

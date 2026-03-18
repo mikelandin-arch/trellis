@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { clerkPlugin } from '@clerk/fastify';
 import {
   fastifyTRPCPlugin,
@@ -7,8 +8,16 @@ import {
 import { createContext } from './trpc/context';
 import { appRouter, type AppRouter } from './routers';
 import { clerkWebhookPlugin } from './webhooks/clerk';
+import { stripeWebhookPlugin } from './webhooks/stripe';
+import { devAuthPlugin } from './plugins/dev-auth';
 
 const PORT = Number(process.env.API_PORT) || 3001;
+
+function hasValidClerkKeys(): boolean {
+  const pk = process.env.CLERK_PUBLISHABLE_KEY ?? '';
+  const sk = process.env.CLERK_SECRET_KEY ?? '';
+  return pk.length > 15 && sk.length > 15;
+}
 
 async function main(): Promise<void> {
   const app = Fastify({
@@ -16,24 +25,43 @@ async function main(): Promise<void> {
     maxParamLength: 5000,
   });
 
-  // Health endpoint at root scope — clerkPlugin (fastify-plugin wrapped)
-  // leaks its preHandler to whatever scope it's registered in, so /health
-  // must live outside that scope to avoid Clerk key validation.
+  const useRealClerk = hasValidClerkKeys();
+
+  if (!useRealClerk && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY are required in production.',
+    );
+  }
+
+  if (!useRealClerk) {
+    app.log.warn('Clerk keys missing or placeholder — using dev auth bypass');
+  }
+
+  await app.register(cors, {
+    origin: [
+      'http://localhost:8081',
+      'http://localhost:19006',
+      /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
+    ],
+    credentials: true,
+  });
+
   app.get('/health', async () => ({
     status: 'ok' as const,
     service: 'trellis-api',
     timestamp: new Date().toISOString(),
   }));
 
-  // All auth-dependent routes live in a child scope so clerkPlugin's
-  // preHandler (leaked via fastify-plugin) stays contained here.
+  await app.register(stripeWebhookPlugin);
+
   await app.register(async function authedRoutes(scope) {
-    // Webhook plugins registered before clerkPlugin so they get their own
-    // encapsulated content-type parser (raw string body for Svix verification)
-    // and are not decorated with Clerk's auth preHandler hooks.
     await scope.register(clerkWebhookPlugin);
 
-    await scope.register(clerkPlugin);
+    if (useRealClerk) {
+      await scope.register(clerkPlugin);
+    } else {
+      await scope.register(devAuthPlugin);
+    }
 
     await scope.register(fastifyTRPCPlugin, {
       prefix: '/trpc',
@@ -44,11 +72,6 @@ async function main(): Promise<void> {
           app.log.error({ path, code: error.code }, error.message);
         },
       } satisfies FastifyTRPCPluginOptions<AppRouter>['trpcOptions'],
-    });
-
-    // REST webhook stubs — will be fully implemented in later phases
-    scope.post('/webhooks/stripe', async (_req, reply) => {
-      await reply.send({ received: true });
     });
   });
 

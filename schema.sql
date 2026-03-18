@@ -59,6 +59,8 @@ CREATE TABLE tenants (
                            CHECK (status IN ('trial','active','suspended','cancelled')),
     stripe_customer_id     TEXT UNIQUE,
     stripe_subscription_id TEXT,
+    stripe_connect_account_id TEXT UNIQUE,
+    stripe_connect_onboarded BOOLEAN NOT NULL DEFAULT false,
     plan_tier              TEXT NOT NULL DEFAULT 'starter'
                            CHECK (plan_tier IN ('starter','professional','enterprise')),
     billing_cycle          TEXT NOT NULL DEFAULT 'monthly'

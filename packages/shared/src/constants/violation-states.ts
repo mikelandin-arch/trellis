@@ -1,16 +1,28 @@
 export const VIOLATION_STATUS = {
-  REPORTED: 'reported', VERIFIED: 'verified',
-  COURTESY_NOTICE_SENT: 'courtesy_notice_sent', FORMAL_NOTICE_SENT: 'formal_notice_sent',
-  ESCALATED: 'escalated', HEARING_SCHEDULED: 'hearing_scheduled',
-  FINE_ASSESSED: 'fine_assessed', PAYMENT_PLAN: 'payment_plan',
-  LIEN_FILED: 'lien_filed', LEGAL_REFERRAL: 'legal_referral',
-  RESOLVED_CURED: 'resolved_cured', RESOLVED_PAID: 'resolved_paid', DISMISSED: 'dismissed',
+  REPORTED: 'reported',
+  VERIFIED: 'verified',
+  COURTESY_NOTICE_SENT: 'courtesy_notice_sent',
+  FORMAL_NOTICE_SENT: 'formal_notice_sent',
+  ESCALATED: 'escalated',
+  HEARING_SCHEDULED: 'hearing_scheduled',
+  FINE_ASSESSED: 'fine_assessed',
+  PAYMENT_PLAN: 'payment_plan',
+  LIEN_FILED: 'lien_filed',
+  LEGAL_REFERRAL: 'legal_referral',
+  RESOLVED_CURED: 'resolved_cured',
+  RESOLVED_PAID: 'resolved_paid',
+  DISMISSED: 'dismissed',
 } as const;
+
 export type ViolationStatus = (typeof VIOLATION_STATUS)[keyof typeof VIOLATION_STATUS];
+
 export const TERMINAL_STATES: readonly ViolationStatus[] = [
-  VIOLATION_STATUS.RESOLVED_CURED, VIOLATION_STATUS.RESOLVED_PAID,
-  VIOLATION_STATUS.DISMISSED, VIOLATION_STATUS.LEGAL_REFERRAL,
+  VIOLATION_STATUS.RESOLVED_CURED,
+  VIOLATION_STATUS.RESOLVED_PAID,
+  VIOLATION_STATUS.DISMISSED,
+  VIOLATION_STATUS.LEGAL_REFERRAL,
 ] as const;
+
 export const VALID_TRANSITIONS: Record<string, readonly ViolationStatus[]> = {
   [VIOLATION_STATUS.REPORTED]: [VIOLATION_STATUS.VERIFIED, VIOLATION_STATUS.DISMISSED],
   [VIOLATION_STATUS.VERIFIED]: [VIOLATION_STATUS.COURTESY_NOTICE_SENT, VIOLATION_STATUS.DISMISSED],
@@ -22,3 +34,53 @@ export const VALID_TRANSITIONS: Record<string, readonly ViolationStatus[]> = {
   [VIOLATION_STATUS.PAYMENT_PLAN]: [VIOLATION_STATUS.RESOLVED_PAID, VIOLATION_STATUS.LIEN_FILED],
   [VIOLATION_STATUS.LIEN_FILED]: [VIOLATION_STATUS.LEGAL_REFERRAL, VIOLATION_STATUS.RESOLVED_PAID],
 } as const;
+
+// ── UI Display Helpers ─────────────────────────────────────────────────
+
+export const VIOLATION_STATUS_LABELS: Record<ViolationStatus, string> = {
+  [VIOLATION_STATUS.REPORTED]: 'Reported',
+  [VIOLATION_STATUS.VERIFIED]: 'Verified',
+  [VIOLATION_STATUS.COURTESY_NOTICE_SENT]: 'Courtesy Notice Sent',
+  [VIOLATION_STATUS.FORMAL_NOTICE_SENT]: 'Formal Notice Sent',
+  [VIOLATION_STATUS.ESCALATED]: 'Escalated',
+  [VIOLATION_STATUS.HEARING_SCHEDULED]: 'Hearing Scheduled',
+  [VIOLATION_STATUS.FINE_ASSESSED]: 'Fine Assessed',
+  [VIOLATION_STATUS.PAYMENT_PLAN]: 'Payment Plan',
+  [VIOLATION_STATUS.LIEN_FILED]: 'Lien Filed',
+  [VIOLATION_STATUS.LEGAL_REFERRAL]: 'Legal Referral',
+  [VIOLATION_STATUS.RESOLVED_CURED]: 'Resolved (Cured)',
+  [VIOLATION_STATUS.RESOLVED_PAID]: 'Resolved (Paid)',
+  [VIOLATION_STATUS.DISMISSED]: 'Dismissed',
+};
+
+export const VIOLATION_SEVERITY_LABELS = {
+  minor: 'Minor',
+  moderate: 'Moderate',
+  major: 'Major',
+  health_safety: 'Health & Safety',
+} as const;
+
+type BadgeVariant = 'info' | 'success' | 'warning' | 'error' | 'neutral';
+
+export const STATUS_BADGE_VARIANT: Record<ViolationStatus, BadgeVariant> = {
+  [VIOLATION_STATUS.REPORTED]: 'info',
+  [VIOLATION_STATUS.VERIFIED]: 'info',
+  [VIOLATION_STATUS.COURTESY_NOTICE_SENT]: 'warning',
+  [VIOLATION_STATUS.FORMAL_NOTICE_SENT]: 'warning',
+  [VIOLATION_STATUS.ESCALATED]: 'error',
+  [VIOLATION_STATUS.HEARING_SCHEDULED]: 'error',
+  [VIOLATION_STATUS.FINE_ASSESSED]: 'error',
+  [VIOLATION_STATUS.PAYMENT_PLAN]: 'warning',
+  [VIOLATION_STATUS.LIEN_FILED]: 'error',
+  [VIOLATION_STATUS.LEGAL_REFERRAL]: 'error',
+  [VIOLATION_STATUS.RESOLVED_CURED]: 'success',
+  [VIOLATION_STATUS.RESOLVED_PAID]: 'success',
+  [VIOLATION_STATUS.DISMISSED]: 'neutral',
+};
+
+export const SEVERITY_BADGE_VARIANT: Record<string, BadgeVariant> = {
+  minor: 'info',
+  moderate: 'warning',
+  major: 'error',
+  health_safety: 'error',
+};

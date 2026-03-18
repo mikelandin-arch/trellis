@@ -1,5 +1,5 @@
 import type { CreateFastifyContextOptions } from '@trpc/server/adapters/fastify';
-import { getAuth } from '@clerk/fastify';
+import type { FastifyRequest } from 'fastify';
 import { db, tenants } from '@repo/db';
 import { eq } from 'drizzle-orm';
 
@@ -35,33 +35,41 @@ export async function resolveTenantId(
   return row.id;
 }
 
+export interface AuthInfo {
+  userId: string | null;
+  sessionId: string | null;
+  orgId: string | null;
+  orgRole: string | null;
+  orgPermissions: readonly string[] | null;
+}
+
+function extractAuth(req: FastifyRequest): AuthInfo {
+  const raw = (req as FastifyRequest & { auth?: Record<string, unknown> }).auth;
+  if (!raw) {
+    return {
+      userId: null,
+      sessionId: null,
+      orgId: null,
+      orgRole: null,
+      orgPermissions: null,
+    };
+  }
+
+  return {
+    userId: (raw.userId as string) ?? null,
+    sessionId: (raw.sessionId as string) ?? null,
+    orgId: (raw.orgId as string) ?? null,
+    orgRole: (raw.orgRole as string) ?? null,
+    orgPermissions: (raw.orgPermissions as readonly string[]) ?? null,
+  };
+}
+
 export function createContext({ req, res }: CreateFastifyContextOptions): {
   req: CreateFastifyContextOptions['req'];
   res: CreateFastifyContextOptions['res'];
-  auth: {
-    userId: string | null;
-    sessionId: string | null;
-    orgId: string | null;
-    orgRole: string | null;
-    orgPermissions: readonly string[] | null;
-  };
+  auth: AuthInfo;
 } {
-  const clerkAuth = getAuth(req);
-
-  return {
-    req,
-    res,
-    auth: {
-      userId: clerkAuth.userId ?? null,
-      sessionId: clerkAuth.sessionId ?? null,
-      orgId: clerkAuth.orgId ?? null,
-      orgRole: clerkAuth.orgRole ?? null,
-      orgPermissions:
-        (clerkAuth as Record<string, unknown>).orgPermissions as
-          | readonly string[]
-          | null ?? null,
-    },
-  };
+  return { req, res, auth: extractAuth(req) };
 }
 
 export type Context = ReturnType<typeof createContext>;

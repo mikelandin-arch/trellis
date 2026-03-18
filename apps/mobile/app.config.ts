@@ -6,7 +6,6 @@ const config: ExpoConfig = {
   version: '0.1.0',
   orientation: 'portrait',
   scheme: 'trellis',
-  newArchEnabled: true,
   ios: {
     bundleIdentifier: 'com.trellishoa.app',
     supportsTablet: true,

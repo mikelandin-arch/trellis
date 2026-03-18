@@ -1,4 +1,7 @@
 export * from './schemas/common';
+export * from './schemas/violation';
+export * from './schemas/assessment';
+export * from './schemas/payment';
 export * from './constants/roles';
 export * from './constants/violation-states';
 export * from './types';
