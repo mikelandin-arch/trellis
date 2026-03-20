@@ -25,7 +25,7 @@ const devAuth: FastifyPluginCallback = (
 
     if (token === 'mock-dev-token') {
       (req as FastifyRequest & { auth: unknown }).auth = {
-        userId: 'user_mock_dev',
+        userId: 'user_3B0lenUBBFeWFai0wg1f6G6fxRk',
         sessionId: 'sess_mock_dev',
         orgId: 'org_3B0ke05kRyhNKSjphKtcJyycHcd',
         orgRole: 'org:board_officer',
@@ -33,6 +33,7 @@ const devAuth: FastifyPluginCallback = (
         orgPermissions: [
           'org:violations:create',
           'org:finance:manage',
+          'org:arc:manage',
         ],
       };
     } else {
