@@ -34,6 +34,9 @@ const devAuth: FastifyPluginCallback = (
           'org:violations:create',
           'org:finance:manage',
           'org:arc:manage',
+          'org:communications:manage',
+          'org:documents:manage',
+          'org:meetings:manage',
         ],
       };
     } else {
