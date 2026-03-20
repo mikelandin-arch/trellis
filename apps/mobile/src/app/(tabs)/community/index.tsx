@@ -1,144 +1,139 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback } from 'react';
 import {
   RefreshControl,
+  ScrollView,
   StyleSheet,
-  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '../../../lib/trpc';
-import { colors, spacing, borderRadius, typography } from '../../../lib/theme';
-import { Text, EmptyState, LoadingSkeleton } from '../../../components/ui';
+import { colors, spacing, borderRadius } from '../../../lib/theme';
+import { Text, Card, Badge } from '../../../components/ui';
+import {
+  PRIORITY_BADGE_VARIANT,
+  PRIORITY_LABELS,
+} from '@repo/shared';
+import type { CommunicationPriority } from '@repo/shared';
 
-export default function CommunityScreen(): React.ReactNode {
+export default function CommunityHubScreen(): React.ReactNode {
   const trpc = useTRPC();
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
 
-  const propertyQuery = useQuery(
-    trpc.property.list.queryOptions({ limit: 100 }),
+  const announcementsQuery = useQuery(
+    trpc.communication.list.queryOptions({
+      communicationType: ['announcement'],
+      limit: 5,
+    }),
   );
 
   const handleRefresh = useCallback(() => {
     void queryClient.invalidateQueries({
-      queryKey: trpc.property.list.queryKey(),
+      queryKey: trpc.communication.list.queryKey(),
     });
   }, [queryClient, trpc]);
 
-  const allProperties = propertyQuery.data?.items ?? [];
-
-  const properties = useMemo(() => {
-    if (search.trim().length === 0) return allProperties;
-    const term = search.toLowerCase();
-    return allProperties.filter(
-      (p) =>
-        (p.addressLine1?.toLowerCase().includes(term) ?? false) ||
-        String(p.lotNumber ?? '').includes(term) ||
-        (p.city?.toLowerCase().includes(term) ?? false),
-    );
-  }, [allProperties, search]);
-
-  const isLoading = propertyQuery.isLoading;
+  const announcements = announcementsQuery.data?.items ?? [];
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text variant="heading1">Community</Text>
-        <View style={styles.searchBar}>
-          <Ionicons
-            name="search"
-            size={20}
-            color={colors.neutral.textTertiary}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search properties..."
-            placeholderTextColor={colors.neutral.textTertiary}
-            value={search}
-            onChangeText={setSearch}
-            autoCapitalize="none"
-            accessibilityLabel="Search properties"
-          />
-        </View>
       </View>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <View key={i} style={styles.skeletonRow}>
-              <LoadingSkeleton width={48} height={48} borderRadius={24} />
-              <View style={styles.skeletonText}>
-                <LoadingSkeleton width="70%" height={18} borderRadius={4} />
-                <LoadingSkeleton
-                  width="50%"
-                  height={14}
-                  borderRadius={4}
-                  style={styles.skeletonGap}
-                />
-              </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={announcementsQuery.isRefetching}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary.base}
+          />
+        }
+      >
+        <View style={styles.quickLinks}>
+          <TouchableOpacity
+            style={styles.quickLink}
+            onPress={() => router.push('/community/announcements')}
+            accessibilityLabel="View announcements"
+          >
+            <View style={[styles.quickLinkIcon, { backgroundColor: colors.primary.surface }]}>
+              <Ionicons name="megaphone-outline" size={24} color={colors.primary.base} />
             </View>
-          ))}
+            <Text variant="bodyBold">Announcements</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickLink}
+            onPress={() => router.push('/community/documents')}
+            accessibilityLabel="View documents"
+          >
+            <View style={[styles.quickLinkIcon, { backgroundColor: colors.success.surface }]}>
+              <Ionicons name="document-text-outline" size={24} color={colors.success.base} />
+            </View>
+            <Text variant="bodyBold">Documents</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickLink}
+            onPress={() => router.push('/community/directory')}
+            accessibilityLabel="View directory"
+          >
+            <View style={[styles.quickLinkIcon, { backgroundColor: colors.warning.surface }]}>
+              <Ionicons name="people-outline" size={24} color={colors.warning.base} />
+            </View>
+            <Text variant="bodyBold">Directory</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        <FlashList
-          data={properties}
-          keyExtractor={(item) => String(item.id)}
-          refreshControl={
-            <RefreshControl
-              refreshing={propertyQuery.isRefetching}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary.base}
-            />
-          }
-          renderItem={({ item }) => (
-            <View style={styles.propertyRow}>
-              <View style={styles.lotCircle}>
-                <Text variant="caption" color={colors.primary.dark} style={styles.lotText}>
-                  {item.lotNumber ?? '#'}
-                </Text>
-              </View>
-              <View style={styles.propertyInfo}>
-                <Text variant="bodyBold">
-                  {item.addressLine1 ?? `Property ${item.id}`}
-                </Text>
-                {item.city ? (
-                  <Text variant="caption">
-                    {[item.city, item.stateCode, item.zip]
-                      .filter(Boolean)
-                      .join(', ')}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text variant="heading3">Recent Announcements</Text>
+            <TouchableOpacity onPress={() => router.push('/community/announcements')}>
+              <Text variant="body" color={colors.primary.base}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {announcements.length === 0 ? (
+            <Card>
+              <Text variant="body" color={colors.neutral.textSecondary}>
+                No announcements yet.
+              </Text>
+            </Card>
+          ) : (
+            announcements.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => router.push(`/community/announcement/${item.id}`)}
+                accessibilityLabel={`Announcement: ${item.subject}`}
+              >
+                <Card style={styles.announcementCard}>
+                  <View style={styles.announcementHeader}>
+                    <Text variant="bodyBold" style={styles.announcementTitle} numberOfLines={1}>
+                      {item.subject}
+                    </Text>
+                    <Badge
+                      variant={PRIORITY_BADGE_VARIANT[item.priority as CommunicationPriority]}
+                      label={PRIORITY_LABELS[item.priority as CommunicationPriority]}
+                    />
+                  </View>
+                  <Text variant="caption" color={colors.neutral.textTertiary}>
+                    {item.sentAt
+                      ? new Date(item.sentAt).toLocaleDateString()
+                      : 'Draft'}
                   </Text>
-                ) : null}
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.neutral.textTertiary}
-              />
-            </View>
+                </Card>
+              </TouchableOpacity>
+            ))
           )}
-          ItemSeparatorComponent={Separator}
-          ListEmptyComponent={
-            <EmptyState
-              icon="search-outline"
-              title={search ? 'No results' : 'No properties'}
-              subtitle={
-                search
-                  ? `No properties match "${search}"`
-                  : 'Properties will appear here once added'
-              }
-            />
-          }
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+        </View>
+      </ScrollView>
     </View>
   );
-}
-
-function Separator(): React.ReactNode {
-  return <View style={styles.separator} />;
 }
 
 const styles = StyleSheet.create({
@@ -154,70 +149,57 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.border,
   },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 48,
-    marginTop: spacing.lg,
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.neutral.surface,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxxl,
+  },
+  quickLinks: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  quickLink: {
+    flex: 1,
+    alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.neutral.background,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.neutral.border,
+    minHeight: 56,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: typography.body.fontSize,
-    color: colors.neutral.textPrimary,
-    marginLeft: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-  },
-  propertyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 72,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xs,
-  },
-  lotCircle: {
+  quickLinkIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.primary.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  lotText: {
-    fontWeight: '700',
-    fontSize: 14,
+  section: {
+    marginBottom: spacing.xl,
   },
-  propertyInfo: {
-    flex: 1,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.neutral.border,
-    marginLeft: 64 + spacing.lg,
-  },
-  loadingContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
-  skeletonRow: {
+  sectionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.md,
   },
-  skeletonText: {
+  announcementCard: {
+    marginBottom: spacing.sm,
+  },
+  announcementHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  announcementTitle: {
     flex: 1,
-    marginLeft: spacing.lg,
-  },
-  skeletonGap: {
-    marginTop: spacing.sm,
+    marginRight: spacing.sm,
   },
 });

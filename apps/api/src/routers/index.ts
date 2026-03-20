@@ -9,6 +9,11 @@ import { chargeRouter } from './charge';
 import { paymentRouter } from './payment';
 import { arcRequestRouter } from './arc-request';
 import { arcModificationTypeRouter } from './arc-modification-type';
+import { communicationRouter } from './communication';
+import { documentRouter } from './document';
+import { documentCategoryRouter } from './document-category';
+import { meetingRouter } from './meeting';
+import { agendaItemRouter } from './agenda-item';
 
 export const appRouter = router({
   health: healthRouter,
@@ -21,6 +26,11 @@ export const appRouter = router({
   payment: paymentRouter,
   arcRequest: arcRequestRouter,
   arcModificationType: arcModificationTypeRouter,
+  communication: communicationRouter,
+  document: documentRouter,
+  documentCategory: documentCategoryRouter,
+  meeting: meetingRouter,
+  agendaItem: agendaItemRouter,
 });
 
 export type AppRouter = typeof appRouter;

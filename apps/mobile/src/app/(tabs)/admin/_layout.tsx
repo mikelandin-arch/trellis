@@ -23,6 +23,18 @@ export default function AdminLayout(): React.ReactNode {
         name="violations/transition"
         options={{ title: 'Update Status', presentation: 'modal' }}
       />
+      <Stack.Screen name="meetings/index" options={{ title: 'Meetings' }} />
+      <Stack.Screen name="meetings/[id]" options={{ title: 'Meeting Detail' }} />
+      <Stack.Screen
+        name="meetings/new"
+        options={{ title: 'Schedule Meeting', presentation: 'modal' }}
+      />
+      <Stack.Screen name="meetings/agenda" options={{ title: 'Agenda Editor' }} />
+      <Stack.Screen name="communications/index" options={{ title: 'Communications' }} />
+      <Stack.Screen
+        name="communications/compose"
+        options={{ title: 'Compose', presentation: 'modal' }}
+      />
     </Stack>
   );
 }

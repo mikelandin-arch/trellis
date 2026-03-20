@@ -32,3 +32,44 @@ export type {
   SetupAutopay,
   PaymentListFilters,
 } from '../schemas/payment';
+export type {
+  CommunicationTypeValue,
+  CreateCommunication,
+  SendCommunication,
+  CommunicationListInput,
+} from '../schemas/communication';
+export type {
+  DocumentCategory,
+  GetUploadUrl,
+  ConfirmUpload,
+  CreateVersion,
+  DocumentListInput,
+  DocumentSearch,
+  DocumentCategoryCreate,
+  DocumentCategoryUpdate,
+} from '../schemas/document';
+export type {
+  CreateMeeting,
+  UpdateMeeting,
+  MeetingListInput,
+  CreateAgendaItem,
+  UpdateAgendaItem,
+  ReorderAgendaItems,
+  RecordAgendaVote,
+  RecordAttendance,
+  SendMeetingNotice,
+} from '../schemas/meeting';
+export type {
+  CommunicationType,
+  CommunicationStatus,
+  CommunicationPriority,
+  AudienceType,
+  DeliveryChannel,
+  DeliveryStatus,
+} from '../constants/communication-states';
+export type {
+  MeetingType,
+  MeetingStatus,
+  AgendaItemType,
+  AttendanceType,
+} from '../constants/meeting-states';

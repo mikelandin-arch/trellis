@@ -2,7 +2,7 @@
 
 Reference for engineers adding features, routers, or infrastructure to the Trellis HOA platform.
 
-**Last updated:** Phase 4 (ARC request management system complete).
+**Last updated:** Phase 5 (Communications, document management, and meeting management systems complete).
 
 ---
 
@@ -873,3 +873,229 @@ npx tsx scripts/seed-arc-requests.ts
 ```
 
 Both scripts require `seed-talasera.ts` and `seed-assessments.ts` to have been run first (for tenant, community, properties, and members).
+
+---
+
+## Communications Engine (Phase 5)
+
+The communications engine provides the delivery backbone for all outbound notifications — violations, assessments, ARC, meetings, and manual announcements. Every communication is logged with per-member delivery tracking.
+
+### Architecture
+
+```
+Board/Manager                    API Server                        Members
+    │                               │                                │
+    │  communication.create()       │                                │
+    │──────────────────────────────>│  INSERT communications         │
+    │  { type, subject, body,       │  (status: draft)               │
+    │    audience, channels }       │                                │
+    │                               │                                │
+    │  communication.send()         │                                │
+    │──────────────────────────────>│  resolveAudience()             │
+    │                               │  → member list                 │
+    │                               │  resolveChannels()             │
+    │                               │  → per-member channels         │
+    │                               │  createDeliveries()            │
+    │                               │  → bulk INSERT deliveries      │
+    │                               │  (status: sent)                │
+    │  { deliveryCount }            │                                │
+    │<──────────────────────────────│                                │
+```
+
+Actual SES/Twilio/push integration is deferred to deployment — the engine currently marks deliveries as `sent` immediately. The delivery tracking infrastructure (queued, sent, delivered, opened, bounced, failed) is fully wired.
+
+### Notification Engine (`apps/api/src/lib/notification-engine.ts`)
+
+| Function | Purpose |
+|---|---|
+| `resolveAudience(db, communityId, audienceType, audienceFilter)` | Returns member list based on audience type. `all_members` queries all; `board` joins `board_terms` for active terms; `specific_members` and `role_based` filter by IDs or member type. |
+| `resolveChannels(member, priority, communicationType)` | Determines delivery channels per member preferences. Emergency bypasses preferences (email + sms + push + in_app). Legal notices (violation, collection, assessment) always include email + physical_mail. |
+| `createDeliveries(db, communicationId, tenantId, memberChannels)` | Bulk inserts `communication_deliveries` rows. Batches in groups of 500 for large audiences. |
+
+### API Surface
+
+| Procedure | Permission | Description |
+|---|---|---|
+| `communication.create` | `org:communications:manage` | Create communication (draft or scheduled) |
+| `communication.list` | — | Paginated list, filterable by type/status/priority/date |
+| `communication.getById` | — | Full detail with aggregated delivery stats |
+| `communication.send` | `org:communications:manage` | Resolve audience, create deliveries, mark as sent |
+| `communication.getDeliveryStatus` | — | Per-channel and per-status delivery breakdown |
+
+### Key Constraints
+
+- Emergency communications bypass all member preferences and quiet hours
+- Legal notices (violation, collection, assessment) always include email + physical_mail channels
+- Every send creates an immutable audit trail via `communication_deliveries`
+- Audience resolution respects RLS — only members of the current tenant are returned
+
+---
+
+## Document Management (Phase 5)
+
+The document management system provides a centralized repository for HOA documents with versioning, role-based access, full-text search, and WA state retention compliance.
+
+### S3 Upload Flow
+
+```
+Mobile App                         API Server                    S3
+    │                                  │                          │
+    │  document.getUploadUrl()         │                          │
+    │  { filename, mimeType, category }│                          │
+    │─────────────────────────────────>│                          │
+    │                                  │  buildDocumentFileKey()  │
+    │                                  │  getPresignedUploadUrl() │
+    │  { uploadUrl, fileKey }          │                          │
+    │<─────────────────────────────────│                          │
+    │                                  │                          │
+    │  PUT uploadUrl (binary)          │                          │
+    │────────────────────────────────────────────────────────────>│
+    │  200 OK                          │                          │
+    │<────────────────────────────────────────────────────────────│
+    │                                  │                          │
+    │  document.confirmUpload()        │                          │
+    │  { title, fileKey, ... }         │                          │
+    │─────────────────────────────────>│  INSERT documents        │
+    │  { document }                    │                          │
+    │<─────────────────────────────────│                          │
+```
+
+S3 keys follow the pattern: `documents/{tenantId}/{category}/{year}/{uuid}-{filename}`.
+
+The S3 utility (`apps/api/src/lib/s3.ts`) is now shared between violations (evidence uploads) and documents. The violation router was refactored to import from `lib/s3.ts`.
+
+### API Surface
+
+| Procedure | Permission | Description |
+|---|---|---|
+| `document.list` | — | Paginated, category-filterable. Homeowners see public docs only; board sees all. |
+| `document.getById` | — | Document detail with version history and pre-signed download URL |
+| `document.getUploadUrl` | `org:documents:manage` | Returns pre-signed S3 PUT URL |
+| `document.confirmUpload` | `org:documents:manage` | Creates document record after successful S3 upload |
+| `document.createVersion` | `org:documents:manage` | Archives current version, updates main record |
+| `document.search` | — | PostgreSQL full-text search via `search_vector` GIN index |
+| `document.delete` | `org:documents:manage` | Soft delete with 7-year retention enforcement for governing docs and violation evidence (RCW 64.38.045) |
+| `documentCategory.list` | — | Hierarchical category tree |
+| `documentCategory.create` | `org:documents:manage` | Create custom category |
+| `documentCategory.update` | `org:documents:manage` | Update (system categories are immutable) |
+
+---
+
+## Meeting Management (Phase 5)
+
+The meeting management system handles the full lifecycle of HOA meetings — scheduling, notices, agenda management, attendance tracking, quorum calculation, and minutes — with WA state compliance enforcement.
+
+### Meeting Compliance Engine (`apps/api/src/lib/meeting-compliance.ts`)
+
+| Function | Purpose |
+|---|---|
+| `calculateNoticeDueDate(meetingDate, meetingType, stateCode)` | Returns the date by which notice must be sent. WA: board/committee/executive = 2 business days; annual = 14 calendar days; special = 10 calendar days. |
+| `getRequiredAgendaItems(meetingType, stateCode)` | Returns mandatory agenda items. WA board meetings require a 15-minute owner comment period (RCW 64.90). Annual meetings include call to order, quorum verification, financial report, owner comment period, and adjournment. |
+| `validateExecutiveSession(agendaItems)` | Verifies executive session only discusses permitted topics (legal, litigation, personnel, contract negotiation, member discipline, security). |
+
+### Meeting Lifecycle
+
+1. **Create**: Board member creates meeting. Required agenda items auto-populated based on type. Quorum required calculated from `communities.total_voting_weight` (50% threshold).
+
+2. **Send Notice**: `meeting.sendNotice` validates notice timing against compliance deadlines, creates a `meeting_notice` communication via the communications engine, and records the notice timestamp.
+
+3. **Record Attendance**: Members checked in via `meeting.recordAttendance` (upsert). Quorum recalculated on each check-in. Supports in-person, virtual, and proxy attendance.
+
+4. **Conduct Meeting**: Agenda items can be updated with resolutions and vote results during the meeting.
+
+5. **Complete**: Meeting marked as completed with minutes text. Minutes can be approved at a subsequent meeting.
+
+### API Surface
+
+| Procedure | Permission | Description |
+|---|---|---|
+| `meeting.create` | `org:meetings:manage` | Create meeting with auto-populated required agenda items |
+| `meeting.list` | — | Paginated, filterable by type/status/date |
+| `meeting.getById` | — | Full detail with agenda, attendees, quorum status |
+| `meeting.update` | `org:meetings:manage` | Edit before meeting starts (draft/scheduled only) |
+| `meeting.sendNotice` | `org:meetings:manage` | Validate notice timing, send via communications engine |
+| `meeting.recordAttendance` | — | Upsert attendance, recalculate quorum |
+| `meeting.checkQuorum` | — | Returns quorum required/present/met |
+| `meeting.cancel` | `org:meetings:manage` | Cancel meeting |
+| `agendaItem.list` | — | Agenda items for a meeting, ordered by sort_order |
+| `agendaItem.create` | `org:meetings:manage` | Add agenda item with auto-increment sort order |
+| `agendaItem.update` | `org:meetings:manage` | Edit title, description, resolution, duration |
+| `agendaItem.recordVote` | `org:meetings:manage` | Record vote result on agenda item |
+| `agendaItem.reorder` | `org:meetings:manage` | Bulk update sort order for drag-and-drop |
+
+### Mobile Screens
+
+The community tab is redesigned as a hub with three sections:
+
+```
+(tabs)/community/
+  _layout.tsx               # Stack navigator
+  index.tsx                 # Hub: quick links (Announcements, Documents, Directory) + recent announcements
+  announcements.tsx         # FlashList of announcements with priority badges
+  announcement/[id].tsx     # Announcement detail with delivery stats
+  documents/index.tsx       # Document library with category filter and full-text search
+  documents/[id].tsx        # Document detail with download and version history
+  directory.tsx             # Property directory (moved from previous community/index.tsx)
+```
+
+The admin section gains meeting and communications management:
+
+```
+(tabs)/admin/
+  meetings/
+    index.tsx               # Upcoming/past toggle, meeting list, schedule FAB
+    [id].tsx                # Detail: agenda, attendees, quorum bar, send notice / cancel
+    new.tsx                 # Create meeting form (type, date, location, virtual)
+    agenda.tsx              # Agenda editor with reorder controls
+  communications/
+    index.tsx               # Sent/drafts list with delivery stats
+    compose.tsx             # Compose: type, audience, channels, schedule, send
+```
+
+### Seed Data
+
+`scripts/seed-communications.ts` populates the dev database with:
+
+| Table | Records | Details |
+|---|---|---|
+| `document_categories` | 10 | System defaults: Governing Documents, Financial, Meeting Minutes, etc. |
+| `documents` | 5 | CC&Rs, 2026 Budget, Jan/Feb meeting minutes, insurance certificate |
+| `communications` | 5 | 3 announcements, 2 meeting notices |
+| `meetings` | 2 | 1 upcoming board meeting (6 agenda items), 1 past annual meeting (32 attendees, quorum met) |
+| `meeting_agenda_items` | 6 | For the upcoming board meeting |
+| `meeting_attendees` | 32 | For the past annual meeting |
+
+### Running the seeds
+
+```bash
+npx tsx scripts/seed-communications.ts
+```
+
+Requires `seed-talasera.ts` and `seed-assessments.ts` to have been run first (for tenant, community, properties, and members).
+
+---
+
+## File Ownership Updates (Phase 5)
+
+### `apps/api/src/` — New files
+
+| File | Responsibility |
+|---|---|
+| `lib/s3.ts` | Shared S3 client, pre-signed URL helpers, document file key builder. Used by violation and document routers. |
+| `lib/notification-engine.ts` | Audience resolution, channel selection, bulk delivery creation for the communications engine. |
+| `lib/meeting-compliance.ts` | WA state meeting notice deadlines, required agenda items, executive session validation. |
+| `routers/communication.ts` | `tenantProcedure` — Communication CRUD + send with audience resolution and delivery tracking. |
+| `routers/document.ts` | `tenantProcedure` — Document CRUD with S3 pre-signed URLs, versioning, full-text search, retention enforcement. |
+| `routers/document-category.ts` | `tenantProcedure` — Document category management. |
+| `routers/meeting.ts` | `tenantProcedure` — Meeting lifecycle: create, notice, attendance, quorum, cancel. |
+| `routers/agenda-item.ts` | `tenantProcedure` — Agenda CRUD with reordering and vote recording. |
+
+### `packages/shared/src/` — New files
+
+| File | Responsibility |
+|---|---|
+| `schemas/communication.ts` | Zod schemas for communication create, send, list filters. |
+| `schemas/document.ts` | Zod schemas for document upload, confirm, search, list, category CRUD. |
+| `schemas/meeting.ts` | Zod schemas for meeting create/update, agenda items, attendance, votes. |
+| `constants/communication-states.ts` | Communication types, statuses, priorities, channels, UI label maps. |
+| `constants/meeting-states.ts` | Meeting types, statuses, agenda item types, attendance types, UI label maps. |

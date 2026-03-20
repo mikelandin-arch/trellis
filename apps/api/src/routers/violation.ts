@@ -3,8 +3,6 @@ import {
   eq, and, desc, inArray, gte, lte, sql, getTableColumns,
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   violations, violationTransitions, violationEvidence,
   violationCategories, properties, users,
@@ -19,12 +17,7 @@ import type { ViolationStatus } from '@repo/shared';
 import { router } from '../trpc/router';
 import { tenantProcedure } from '../trpc/procedures';
 import { getCureDeadline, validateTransition, checkFineCap } from '../lib/compliance';
-
-// ── S3 ─────────────────────────────────────────────────────────────────
-
-const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'us-west-2' });
-const BUCKET = process.env.TRELLIS_S3_BUCKET ?? 'trellis-documents-dev';
-const PRESIGN_EXPIRY_SECONDS = 300;
+import { getPresignedUploadUrl, buildFileUrl } from '../lib/s3';
 
 const EVIDENCE_CONTENT_TYPES: Record<string, string> = {
   photo: 'image/jpeg',
@@ -378,12 +371,7 @@ export const violationRouter = router({
       const fileKey = `violations/${ctx.tenantId}/${input.violationId}/${evidenceId}`;
       const contentType = EVIDENCE_CONTENT_TYPES[input.evidenceType] ?? 'application/octet-stream';
 
-      const command = new PutObjectCommand({
-        Bucket: BUCKET,
-        Key: fileKey,
-        ContentType: contentType,
-      });
-      const uploadUrl = await getSignedUrl(s3, command, { expiresIn: PRESIGN_EXPIRY_SECONDS });
+      const { uploadUrl } = await getPresignedUploadUrl(fileKey, contentType);
 
       const [evidence] = await ctx.db.insert(violationEvidence).values({
         id: evidenceId,
@@ -391,7 +379,7 @@ export const violationRouter = router({
         violationId: input.violationId,
         evidenceType: input.evidenceType,
         fileKey,
-        fileUrl: `https://${BUCKET}.s3.amazonaws.com/${fileKey}`,
+        fileUrl: buildFileUrl(fileKey),
         description: input.description,
         capturedBy: userId,
         latitude: input.latitude != null ? String(input.latitude) : null,
