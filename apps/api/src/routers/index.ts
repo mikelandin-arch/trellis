@@ -7,6 +7,8 @@ import { stripeConnectRouter } from './stripe-connect';
 import { assessmentRouter } from './assessment';
 import { chargeRouter } from './charge';
 import { paymentRouter } from './payment';
+import { arcRequestRouter } from './arc-request';
+import { arcModificationTypeRouter } from './arc-modification-type';
 
 export const appRouter = router({
   health: healthRouter,
@@ -17,6 +19,8 @@ export const appRouter = router({
   assessment: assessmentRouter,
   charge: chargeRouter,
   payment: paymentRouter,
+  arcRequest: arcRequestRouter,
+  arcModificationType: arcModificationTypeRouter,
 });
 
 export type AppRouter = typeof appRouter;

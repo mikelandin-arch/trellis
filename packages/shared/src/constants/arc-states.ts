@@ -1,0 +1,89 @@
+export const ARC_STATUS = {
+  DRAFT: 'draft',
+  SUBMITTED: 'submitted',
+  UNDER_REVIEW: 'under_review',
+  INFO_REQUESTED: 'info_requested',
+  SITE_VISIT_SCHEDULED: 'site_visit_scheduled',
+  COMMITTEE_REVIEW: 'committee_review',
+  APPROVED: 'approved',
+  APPROVED_WITH_CONDITIONS: 'approved_with_conditions',
+  DENIED: 'denied',
+  WITHDRAWN: 'withdrawn',
+  EXPIRED: 'expired',
+  APPEALED: 'appealed',
+  CONSTRUCTION_ACTIVE: 'construction_active',
+  COMPLIANCE_CHECK: 'compliance_check',
+  COMPLETED: 'completed',
+  VIOLATION_ISSUED: 'violation_issued',
+} as const;
+
+export type ArcStatus = (typeof ARC_STATUS)[keyof typeof ARC_STATUS];
+
+export const TERMINAL_ARC_STATES: readonly ArcStatus[] = [
+  ARC_STATUS.COMPLETED,
+  ARC_STATUS.WITHDRAWN,
+  ARC_STATUS.EXPIRED,
+  ARC_STATUS.VIOLATION_ISSUED,
+] as const;
+
+export const VALID_ARC_TRANSITIONS: Record<string, readonly ArcStatus[]> = {
+  [ARC_STATUS.SUBMITTED]: [ARC_STATUS.UNDER_REVIEW, ARC_STATUS.INFO_REQUESTED, ARC_STATUS.WITHDRAWN],
+  [ARC_STATUS.UNDER_REVIEW]: [ARC_STATUS.COMMITTEE_REVIEW, ARC_STATUS.SITE_VISIT_SCHEDULED, ARC_STATUS.INFO_REQUESTED],
+  [ARC_STATUS.INFO_REQUESTED]: [ARC_STATUS.UNDER_REVIEW, ARC_STATUS.EXPIRED],
+  [ARC_STATUS.SITE_VISIT_SCHEDULED]: [ARC_STATUS.COMMITTEE_REVIEW],
+  [ARC_STATUS.COMMITTEE_REVIEW]: [ARC_STATUS.APPROVED, ARC_STATUS.APPROVED_WITH_CONDITIONS, ARC_STATUS.DENIED],
+  [ARC_STATUS.APPROVED]: [ARC_STATUS.CONSTRUCTION_ACTIVE],
+  [ARC_STATUS.APPROVED_WITH_CONDITIONS]: [ARC_STATUS.CONSTRUCTION_ACTIVE],
+  [ARC_STATUS.CONSTRUCTION_ACTIVE]: [ARC_STATUS.COMPLIANCE_CHECK, ARC_STATUS.VIOLATION_ISSUED],
+  [ARC_STATUS.COMPLIANCE_CHECK]: [ARC_STATUS.COMPLETED, ARC_STATUS.VIOLATION_ISSUED],
+  [ARC_STATUS.DENIED]: [ARC_STATUS.APPEALED],
+  [ARC_STATUS.APPEALED]: [ARC_STATUS.APPROVED, ARC_STATUS.DENIED],
+} as const;
+
+// ── UI Display Helpers ─────────────────────────────────────────────────
+
+export const ARC_STATUS_LABELS: Record<ArcStatus, string> = {
+  [ARC_STATUS.DRAFT]: 'Draft',
+  [ARC_STATUS.SUBMITTED]: 'Submitted',
+  [ARC_STATUS.UNDER_REVIEW]: 'Under Review',
+  [ARC_STATUS.INFO_REQUESTED]: 'Info Requested',
+  [ARC_STATUS.SITE_VISIT_SCHEDULED]: 'Site Visit Scheduled',
+  [ARC_STATUS.COMMITTEE_REVIEW]: 'Committee Review',
+  [ARC_STATUS.APPROVED]: 'Approved',
+  [ARC_STATUS.APPROVED_WITH_CONDITIONS]: 'Approved w/ Conditions',
+  [ARC_STATUS.DENIED]: 'Denied',
+  [ARC_STATUS.WITHDRAWN]: 'Withdrawn',
+  [ARC_STATUS.EXPIRED]: 'Expired',
+  [ARC_STATUS.APPEALED]: 'Appealed',
+  [ARC_STATUS.CONSTRUCTION_ACTIVE]: 'Construction Active',
+  [ARC_STATUS.COMPLIANCE_CHECK]: 'Compliance Check',
+  [ARC_STATUS.COMPLETED]: 'Completed',
+  [ARC_STATUS.VIOLATION_ISSUED]: 'Violation Issued',
+};
+
+type BadgeVariant = 'info' | 'success' | 'warning' | 'error' | 'neutral';
+
+export const ARC_STATUS_BADGE_VARIANT: Record<ArcStatus, BadgeVariant> = {
+  [ARC_STATUS.DRAFT]: 'neutral',
+  [ARC_STATUS.SUBMITTED]: 'info',
+  [ARC_STATUS.UNDER_REVIEW]: 'info',
+  [ARC_STATUS.INFO_REQUESTED]: 'warning',
+  [ARC_STATUS.SITE_VISIT_SCHEDULED]: 'info',
+  [ARC_STATUS.COMMITTEE_REVIEW]: 'warning',
+  [ARC_STATUS.APPROVED]: 'success',
+  [ARC_STATUS.APPROVED_WITH_CONDITIONS]: 'success',
+  [ARC_STATUS.DENIED]: 'error',
+  [ARC_STATUS.WITHDRAWN]: 'neutral',
+  [ARC_STATUS.EXPIRED]: 'neutral',
+  [ARC_STATUS.APPEALED]: 'warning',
+  [ARC_STATUS.CONSTRUCTION_ACTIVE]: 'info',
+  [ARC_STATUS.COMPLIANCE_CHECK]: 'warning',
+  [ARC_STATUS.COMPLETED]: 'success',
+  [ARC_STATUS.VIOLATION_ISSUED]: 'error',
+};
+
+export const COMPLEXITY_TIER_LABELS: Record<number, string> = {
+  1: 'Fast Track',
+  2: 'Standard',
+  3: 'Complex',
+};

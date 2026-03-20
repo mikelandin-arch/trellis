@@ -2,7 +2,7 @@
 
 Reference for engineers adding features, routers, or infrastructure to the Trellis HOA platform.
 
-**Last updated:** Phase 3 (Financial management system complete).
+**Last updated:** Phase 4 (ARC request management system complete).
 
 ---
 
@@ -767,3 +767,109 @@ The admin section gains a **Finance** screen (`admin/finance/index.tsx`):
 - AR aging breakdown (current/30/60/90+ day buckets)
 - Recent overdue charges
 - "Generate Assessments" button for billing cycle
+
+---
+
+## ARC Request Management (Phase 4)
+
+The Architectural Review Committee (ARC) request management system handles the full lifecycle of homeowner modification requests — from submission through committee review to post-construction compliance verification — with legally-mandated deadline tracking and WA state compliance.
+
+### State Machine
+
+The ARC request lifecycle is a state machine with 16 states and controlled transitions. The critical safety feature is the **deemed-approved deadline**: if the committee fails to act within the CC&R-mandated review period (30 days for Talasera, 60 days for EV chargers per RCW 64.38.062), the modification is legally approved.
+
+```
+SUBMITTED
+  ├→ UNDER_REVIEW → COMMITTEE_REVIEW → APPROVED
+  │                                   → APPROVED_WITH_CONDITIONS
+  │                                   → DENIED → APPEALED → APPROVED / DENIED
+  │               → SITE_VISIT_SCHEDULED → COMMITTEE_REVIEW
+  │               → INFO_REQUESTED → UNDER_REVIEW / EXPIRED
+  └→ INFO_REQUESTED
+  └→ WITHDRAWN
+
+APPROVED / APPROVED_WITH_CONDITIONS
+  └→ CONSTRUCTION_ACTIVE → COMPLIANCE_CHECK → COMPLETED
+                                             → VIOLATION_ISSUED
+                         → VIOLATION_ISSUED
+```
+
+Terminal states: `COMPLETED`, `WITHDRAWN`, `EXPIRED`, `VIOLATION_ISSUED`.
+
+State definitions live in `packages/shared/src/constants/arc-states.ts`. The `VALID_ARC_TRANSITIONS` map is the source of truth for allowed transitions.
+
+### Compliance Engine
+
+The ARC compliance engine (`apps/api/src/lib/arc-compliance.ts`) enforces legal and CC&R requirements:
+
+| Function | Purpose |
+|---|---|
+| `calculateDeadlines(submissionDate, modType, stateCode)` | Computes `reviewDeadline` and `deemedApprovedDeadline`. EV chargers get 60-day deemed-approved per RCW 64.38.062; all others use the modification type's `defaultReviewDays`. |
+| `checkDeemedApproved(request)` | Returns `true` if current date exceeds `deemedApprovedDeadline` and no decision has been made. This is the critical safety check. |
+| `isProtectedModification(modTypeName, stateCode)` | Identifies federally/state-protected modifications: solar panels (RCW 64.38.055), satellite dishes (OTARD), EV chargers (RCW 64.38.062), flag display (Freedom to Display the American Flag Act). System warns/blocks denial of protected types. |
+| `getConsistencyScore(db, modificationTypeId, proposedDecision)` | Compares a proposed decision against historical decisions for the same modification type. Score below 70% triggers a mandatory acknowledgment to protect against selective enforcement lawsuits. |
+
+### API Surface
+
+Two tRPC routers handle ARC operations:
+
+**`arcRequest` router** (`apps/api/src/routers/arc-request.ts`):
+
+| Procedure | Input | Description |
+|---|---|---|
+| `create` | `createArcRequestSchema` | Homeowner submits request. Resolves property, calculates deadlines, checks for protected modifications, records initial transition. |
+| `list` | `arcRequestListSchema` | Cursor-paginated, filterable by status, property, applicant. Homeowners see only their own; board sees all. Includes countdown timers. |
+| `getById` | `idParamSchema` | Full detail: request + transitions + votes + valid next transitions + deemed-approved check + protected modification info. |
+| `transition` | `transitionArcRequestSchema` | State machine transition with validation. Sets decision fields on approval/denial. |
+| `vote` | `arcVoteSchema` | Committee member casts vote with required rationale. Validates committee membership, checks conflict of interest, blocks denial of protected modifications. |
+| `addCondition` | `addArcConditionSchema` | Admin adds condition to conditionally approved request. |
+| `acceptConditions` | `acceptArcConditionsSchema` | Applicant accepts conditions, transitioning to construction_active. |
+
+**`arcModificationType` router** (`apps/api/src/routers/arc-modification-type.ts`):
+
+| Procedure | Input | Description |
+|---|---|---|
+| `list` | — | All active modification types, ordered by complexity tier then sort order. |
+| `create` | `arcModificationTypeCreateSchema` | Admin-only creation. |
+| `update` | `arcModificationTypeUpdateSchema` | Admin-only updates. |
+
+### Mobile Screens
+
+The requests tab is now a Stack navigator with four screens:
+
+```
+(tabs)/requests/
+  _layout.tsx               # Stack navigator
+  index.tsx                 # Request list with role-based view, filter chips, countdown timers
+  [id].tsx                  # Detail: status timeline, deadline banners, vote summary, conditions
+  new.tsx                   # 4-step wizard (type → details → photos → review & submit)
+  review.tsx                # Board review: vote buttons, conditions editor, protected warnings
+```
+
+Key UX features:
+- **Countdown timers** on list and detail: yellow when < 7 days, red when < 3 days to review deadline.
+- **Deemed-approved warning banner**: Red banner on detail screen when deadline has passed or is imminent.
+- **Protected modification banners**: Informational display when a request involves solar, EV, satellite, or flag modifications that cannot legally be denied.
+- **Role-based views**: Homeowners see "My Requests"; board members see "All Requests" with pending review count.
+- **Modification type picker**: Grouped by complexity tier (Fast Track / Standard / Complex) with review timeline estimates.
+
+### Seed Data
+
+`scripts/seed-arc-types.ts` populates 20 modification types across 3 tiers for the Talasera HOA:
+
+| Tier | Types | Review Period | Examples |
+|---|---|---|---|
+| Tier 1 (Fast Track) | 8 | 14 days | Paint, landscaping, mailbox, solar panels, EV charger, satellite dish, flag |
+| Tier 2 (Standard) | 6 | 30 days | Fence, deck/patio, exterior lighting, driveway, roof, gutters |
+| Tier 3 (Complex) | 6 | 45 days + site visit | Room addition, ADU, pool/spa, retaining wall, major landscaping, tree removal |
+
+`scripts/seed-arc-requests.ts` creates 7 sample requests: 3 approved, 2 under review, 1 denied, 1 approved with conditions (including drainage conditions on a patio extension).
+
+### Running the seeds
+
+```bash
+npx tsx scripts/seed-arc-types.ts
+npx tsx scripts/seed-arc-requests.ts
+```
+
+Both scripts require `seed-talasera.ts` and `seed-assessments.ts` to have been run first (for tenant, community, properties, and members).
